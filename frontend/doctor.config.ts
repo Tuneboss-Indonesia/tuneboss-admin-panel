@@ -1,5 +1,3 @@
-import type { ReactDoctorConfig } from "react-doctor/api";
-
 export default {
   project: "tsconfig.json",
   src: "src",
@@ -7,4 +5,4 @@ export default {
     "node_modules",
     ".next"
   ]
-} satisfies ReactDoctorConfig;
+};
