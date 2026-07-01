@@ -25,9 +25,12 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== STATIC_CACHE && name !== DYNAMIC_CACHE)
-          .map((name) => caches.delete(name))
+        cacheNames.reduce((acc, name) => {
+          if (name !== STATIC_CACHE && name !== DYNAMIC_CACHE) {
+            acc.push(caches.delete(name));
+          }
+          return acc;
+        }, [])
       );
     }).then(() => self.clients.claim())
   );
