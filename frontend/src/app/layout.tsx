@@ -1,29 +1,11 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { DashboardLanguageProvider } from "@/components/dashboard-language";
 
-const futuraPt = localFont({
-  src: [
-    {
-      path: "../../public/fonts/Futura-PT-Book.woff2",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "../../public/fonts/Futura-PT-Medium.woff2",
-      weight: "500",
-      style: "normal",
-    },
-  ],
-  variable: "--font-futura-pt",
-});
-
-const sqr721be = localFont({
-  src: "../../public/fonts/SQR721BE.woff2",
-  weight: "400",
-  style: "normal",
-  variable: "--font-sqr721be",
-});
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "TuneBoss Admin",
@@ -38,9 +20,13 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${futuraPt.variable} ${sqr721be.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", "font-sans", geist.variable)}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <DashboardLanguageProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </DashboardLanguageProvider>
+      </body>
     </html>
   );
 }
