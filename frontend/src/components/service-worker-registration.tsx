@@ -4,29 +4,37 @@ import { useEffect } from "react";
 
 export function ServiceWorkerRegistration() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((registration) => {
-          console.log("SW registered:", registration.scope);
+    if (!("serviceWorker" in navigator)) return;
 
-          // Check for updates periodically
-          registration.addEventListener("updatefound", () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener("statechange", () => {
-                if (newWorker.state === "activated") {
-                  // Notify user about update (optional)
-                  console.log("New service worker activated");
-                }
-              });
-            }
-          });
-        })
-        .catch((error) => {
-          console.error("SW registration failed:", error);
+    let registration: ServiceWorkerRegistration | null = null;
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => {
+        registration = reg;
+        console.log("SW registered:", reg.scope);
+
+        // Check for updates periodically
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "activated") {
+                console.log("New service worker activated");
+              }
+            });
+          }
         });
-    }
+      })
+      .catch((error) => {
+        console.error("SW registration failed:", error);
+      });
+
+    return () => {
+      if (registration) {
+        registration.unregister();
+      }
+    };
   }, []);
 
   return null;

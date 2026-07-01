@@ -1,4 +1,3 @@
-const CACHE_NAME = "tuneboss-admin-v1";
 const STATIC_CACHE = "tuneboss-static-v1";
 const DYNAMIC_CACHE = "tuneboss-dynamic-v1";
 
