@@ -43,6 +43,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { applyTheme, setStoredTheme, type Theme, useStoredTheme } from "@/lib/preferences"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 const navKeys = [
   ["dashboard", "/dashboard", LayoutDashboard],
@@ -96,6 +97,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const theme = useStoredTheme() as Theme
   const { language, setLanguage } = useDashboardLanguage()
   const t = messages[language]
+  const isMobile = useIsMobile()
 
   React.useEffect(() => {
     applyTheme(theme)
@@ -143,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <span>{t.language}</span>
                 <span className="ml-auto text-xs font-bold uppercase text-primary">{language}</span>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-40" side="right" align="start">
+              <DropdownMenuContent className="w-40" side={isMobile ? "bottom" : "right"} align="start">
                 <DropdownMenuRadioGroup
                   value={language}
                   onValueChange={(value) => setLanguage(value as "id" | "en")}
@@ -162,7 +164,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <Moon className="absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span>{t.theme}</span>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-44" side="right" align="start">
+              <DropdownMenuContent className="w-44" side={isMobile ? "bottom" : "right"} align="start">
                 {([["light", t.light, Sun], ["dark", t.dark, Moon], ["system", t.system, Monitor]] as const).map(([value, label, Icon]) => (
                   <DropdownMenuItem key={value} className="gap-3 py-2" onClick={() => setStoredTheme(value)}>
                     <Icon className="size-4" /> 
