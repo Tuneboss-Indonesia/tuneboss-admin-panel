@@ -173,8 +173,9 @@ export default function SettingsPage() {
                   <label className="text-sm font-medium text-foreground">{t.emailAddress}</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <Input 
-                      type="email" 
+                     <Input 
+                       type="text" 
+                       inputMode="email"
                       className="pl-9 bg-background/50 border-border/60" 
                       aria-invalid={!!profileErrors.email}
                       {...registerProfile("email")} 

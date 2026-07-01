@@ -170,7 +170,8 @@ export default function LoginPage() {
                 <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.email}</label>
                 <Input
                   id="email"
-                  type="email"
+                  type="text"
+                  inputMode="email"
                   placeholder="admin@tuneboss.id"
                   autoComplete="email"
                   aria-invalid={!!errors.email}
