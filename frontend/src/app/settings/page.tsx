@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useDashboardLanguage } from "@/components/dashboard-language"
-import { User, Mail, Lock, Save, Loader2, CheckCircle2 } from "lucide-react"
+import { User, Mail, Lock, Save, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -73,6 +73,40 @@ const getSecuritySchema = (t: typeof messages.id | typeof messages.en) => z.obje
   path: ["confirmPassword"],
 })
 
+type FormStatus = { isSavingProfile: boolean; profileSaved: boolean; isSavingSecurity: boolean; securitySaved: boolean }
+type FormAction =
+  | { type: "savingProfile" }
+  | { type: "savedProfile" }
+  | { type: "clearSavedProfile" }
+  | { type: "savingSecurity" }
+  | { type: "savedSecurity" }
+  | { type: "clearSavedSecurity" }
+
+function formReducer(state: FormStatus, action: FormAction): FormStatus {
+  switch (action.type) {
+    case "savingProfile": return { ...state, isSavingProfile: true }
+    case "savedProfile": return { ...state, isSavingProfile: false, profileSaved: true }
+    case "clearSavedProfile": return { ...state, profileSaved: false }
+    case "savingSecurity": return { ...state, isSavingSecurity: true }
+    case "savedSecurity": return { ...state, isSavingSecurity: false, securitySaved: true }
+    case "clearSavedSecurity": return { ...state, securitySaved: false }
+  }
+}
+
+type PasswordVisibility = { current: boolean; new: boolean; confirm: boolean }
+type PasswordAction =
+  | { type: "toggleCurrent" }
+  | { type: "toggleNew" }
+  | { type: "toggleConfirm" }
+
+function passwordReducer(state: PasswordVisibility, action: PasswordAction): PasswordVisibility {
+  switch (action.type) {
+    case "toggleCurrent": return { ...state, current: !state.current }
+    case "toggleNew": return { ...state, new: !state.new }
+    case "toggleConfirm": return { ...state, confirm: !state.confirm }
+  }
+}
+
 export default function SettingsPage() {
   const { language } = useDashboardLanguage()
   const t = messages[language]
@@ -109,27 +143,27 @@ export default function SettingsPage() {
     },
   })
 
-  const [isSavingProfile, setIsSavingProfile] = React.useState(false)
-  const [profileSaved, setProfileSaved] = React.useState(false)
+  const [form, dispatch] = React.useReducer(formReducer, {
+    isSavingProfile: false, profileSaved: false, isSavingSecurity: false, securitySaved: false,
+  })
 
-  const [isSavingSecurity, setIsSavingSecurity] = React.useState(false)
-  const [securitySaved, setSecuritySaved] = React.useState(false)
+  const [passwords, passwordsDispatch] = React.useReducer(passwordReducer, {
+    current: false, new: false, confirm: false,
+  })
 
   const onSubmitProfile = () => {
-    setIsSavingProfile(true)
+    dispatch({ type: "savingProfile" })
     setTimeout(() => {
-      setIsSavingProfile(false)
-      setProfileSaved(true)
-      setTimeout(() => setProfileSaved(false), 3000)
+      dispatch({ type: "savedProfile" })
+      setTimeout(() => dispatch({ type: "clearSavedProfile" }), 3000)
     }, 800)
   }
 
   const onSubmitSecurity = () => {
-    setIsSavingSecurity(true)
+    dispatch({ type: "savingSecurity" })
     setTimeout(() => {
-      setIsSavingSecurity(false)
-      setSecuritySaved(true)
-      setTimeout(() => setSecuritySaved(false), 3000)
+      dispatch({ type: "savedSecurity" })
+      setTimeout(() => dispatch({ type: "clearSavedSecurity" }), 3000)
       resetSecurity()
     }, 800)
   }
@@ -185,10 +219,10 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/20 border-t border-border/50 p-4 justify-end">
-                <Button type="submit" disabled={isSavingProfile} className="min-w-[140px]">
-                  {isSavingProfile ? (
+                <Button type="submit" disabled={form.isSavingProfile} className="min-w-[140px]">
+                  {form.isSavingProfile ? (
                     <><Loader2 className="mr-2 size-4 animate-spin" /> {t.saving}</>
-                  ) : profileSaved ? (
+                  ) : form.profileSaved ? (
                     <><CheckCircle2 className="mr-2 size-4 text-emerald-300" /> {t.saved}</>
                   ) : (
                     <><Save className="mr-2 size-4" /> {t.saveChanges}</>
@@ -213,43 +247,73 @@ export default function SettingsPage() {
               <CardContent className="p-6 space-y-5">
                 <div className="space-y-2 max-w-md">
                   <label className="text-sm font-medium text-foreground">{t.currentPassword}</label>
-                  <Input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    className="bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
-                    aria-invalid={!!securityErrors.currentPassword}
-                    {...registerSecurity("currentPassword")} 
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input 
+                      type={passwords.current ? "text" : "password"}
+                      placeholder="••••••••" 
+                      className="pl-9 pr-10 bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
+                      aria-invalid={!!securityErrors.currentPassword}
+                      {...registerSecurity("currentPassword")} 
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-2 inline-flex items-center text-muted-foreground hover:text-foreground"
+                      onClick={() => passwordsDispatch({ type: "toggleCurrent" })}
+                    >
+                      {passwords.current ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   {securityErrors.currentPassword && <p className="text-sm font-medium text-destructive">{securityErrors.currentPassword.message}</p>}
                 </div>
                 <div className="space-y-2 max-w-md">
                   <label className="text-sm font-medium text-foreground">{t.newPassword}</label>
-                  <Input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    className="bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
-                    aria-invalid={!!securityErrors.newPassword}
-                    {...registerSecurity("newPassword")} 
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input 
+                      type={passwords.new ? "text" : "password"}
+                      placeholder="••••••••" 
+                      className="pl-9 pr-10 bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
+                      aria-invalid={!!securityErrors.newPassword}
+                      {...registerSecurity("newPassword")} 
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-2 inline-flex items-center text-muted-foreground hover:text-foreground"
+                      onClick={() => passwordsDispatch({ type: "toggleNew" })}
+                    >
+                      {passwords.new ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   {securityErrors.newPassword && <p className="text-sm font-medium text-destructive">{securityErrors.newPassword.message}</p>}
                 </div>
                 <div className="space-y-2 max-w-md">
                   <label className="text-sm font-medium text-foreground">{t.confirmPassword}</label>
-                  <Input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    className="bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
-                    aria-invalid={!!securityErrors.confirmPassword}
-                    {...registerSecurity("confirmPassword")} 
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input 
+                      type={passwords.confirm ? "text" : "password"}
+                      placeholder="••••••••" 
+                      className="pl-9 pr-10 bg-background/50 border-border/60 font-mono tracking-widest placeholder:tracking-normal" 
+                      aria-invalid={!!securityErrors.confirmPassword}
+                      {...registerSecurity("confirmPassword")} 
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-2 inline-flex items-center text-muted-foreground hover:text-foreground"
+                      onClick={() => passwordsDispatch({ type: "toggleConfirm" })}
+                    >
+                      {passwords.confirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   {securityErrors.confirmPassword && <p className="text-sm font-medium text-destructive">{securityErrors.confirmPassword.message}</p>}
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/20 border-t border-border/50 p-4 justify-end">
-                <Button type="submit" disabled={isSavingSecurity} className="min-w-[140px]">
-                  {isSavingSecurity ? (
+                <Button type="submit" disabled={form.isSavingSecurity} className="min-w-[140px]">
+                  {form.isSavingSecurity ? (
                     <><Loader2 className="mr-2 size-4 animate-spin" /> {t.saving}</>
-                  ) : securitySaved ? (
+                  ) : form.securitySaved ? (
                     <><CheckCircle2 className="mr-2 size-4 text-emerald-300" /> {t.saved}</>
                   ) : (
                     <><Save className="mr-2 size-4" /> {t.saveChanges}</>
