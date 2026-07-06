@@ -8,6 +8,8 @@ import { TrendingUp, Users, CreditCard, DollarSign, Calendar, ChevronDown } from
 import dynamic from "next/dynamic"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
+import { getAdminAnalytics, type AdminAnalytics } from "@/lib/api"
+import { formatIDR } from "@/lib/mock-data"
 
 const RevenueChart = dynamic(() => import('@/components/analytics/revenue-chart').then(mod => mod.RevenueChart), { ssr: false })
 const CategoriesChart = dynamic(() => import('@/components/analytics/categories-chart').then(mod => mod.CategoriesChart), { ssr: false })
@@ -68,30 +70,15 @@ const messages = {
   }
 }
 
-const revenueData = [
-  { name: "1 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "5 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "10 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "15 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "20 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "25 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-  { name: "30 Jun", total: Math.floor(Math.random() * 5000000) + 1000000 },
-]
-
-const productData = [
-  { name: "TuneBoss ECU", sales: 400 },
-  { name: "Quick Shifter", sales: 300 },
-  { name: "Shift Light", sales: 200 },
-  { name: "Camshaft", sales: 278 },
-  { name: "TPS Sensor", sales: 189 },
-]
-
-const categoryData = [
-  { name: "Elektronik", value: 400, color: "var(--chart-1)" },
-  { name: "Mesin", value: 300, color: "var(--chart-2)" },
-  { name: "Aksesoris", value: 300, color: "var(--chart-3)" },
-  { name: "Lainnya", value: 200, color: "var(--chart-4)" },
-]
+const emptyAnalytics: AdminAnalytics = {
+  categories: [],
+  conversion: 0,
+  customers: 0,
+  orders: 0,
+  revenue: [],
+  totalRevenue: 0,
+  topProducts: [],
+}
 
 const revenueChartConfig = {
   total: {
@@ -118,6 +105,15 @@ export default function AnalyticsPage() {
   const t = messages[language]
 
   const [timeframe, setTimeframe] = React.useState("thisMonth")
+  const [analytics, setAnalytics] = React.useState<AdminAnalytics>(emptyAnalytics)
+
+  React.useEffect(() => {
+    let cancelled = false
+    getAdminAnalytics(timeframe as "thisMonth" | "thisYear" | "lastYear")
+      .then(({ analytics }) => { if (!cancelled) setAnalytics(analytics) })
+      .catch(() => { if (!cancelled) setAnalytics(emptyAnalytics) })
+    return () => { cancelled = true }
+  }, [timeframe])
 
   return (
     <AdminLayout>
@@ -156,7 +152,7 @@ export default function AnalyticsPage() {
               <DollarSign className="h-5 w-5 text-primary opacity-80" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Rp 45.231.890</div>
+              <div className="text-2xl font-bold">{formatIDR(analytics.totalRevenue)}</div>
               <p className="text-xs text-muted-foreground">
                 {t.revenueDesc}
               </p>
@@ -170,7 +166,7 @@ export default function AnalyticsPage() {
               <CreditCard className="h-5 w-5 text-primary opacity-80" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+2350</div>
+              <div className="text-2xl font-bold">{analytics.orders}</div>
               <p className="text-xs text-muted-foreground">
                 {t.ordersDesc}
               </p>
@@ -182,7 +178,7 @@ export default function AnalyticsPage() {
               <Users className="h-5 w-5 text-primary opacity-80" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+12,234</div>
+              <div className="text-2xl font-bold">{analytics.customers}</div>
               <p className="text-xs text-muted-foreground">
                 {t.customersDesc}
               </p>
@@ -194,7 +190,7 @@ export default function AnalyticsPage() {
               <TrendingUp className="h-5 w-5 text-primary opacity-80" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">4.3%</div>
+              <div className="text-2xl font-bold">{analytics.conversion.toFixed(1)}%</div>
               <p className="text-xs text-muted-foreground">
                 {t.conversionDesc}
               </p>
@@ -209,7 +205,7 @@ export default function AnalyticsPage() {
               <CardDescription>{t.revenueChartDesc}</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-[300px]">
-              <RevenueChart revenueData={revenueData} revenueChartConfig={revenueChartConfig} />
+              <RevenueChart revenueData={analytics.revenue} revenueChartConfig={revenueChartConfig} />
             </CardContent>
           </Card>
           
@@ -219,7 +215,7 @@ export default function AnalyticsPage() {
               <CardDescription>{t.categoriesDesc}</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-[300px] flex items-center justify-center">
-              <CategoriesChart categoryData={categoryData} categoryChartConfig={categoryChartConfig} />
+              <CategoriesChart categoryData={analytics.categories} categoryChartConfig={categoryChartConfig} />
             </CardContent>
           </Card>
         </div>
@@ -231,7 +227,7 @@ export default function AnalyticsPage() {
               <CardDescription>{t.topProductsDesc}</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-[300px]">
-              <TopProductsChart productData={productData} productChartConfig={productChartConfig} />
+              <TopProductsChart productData={analytics.topProducts} productChartConfig={productChartConfig} />
             </CardContent>
           </Card>
         </div>

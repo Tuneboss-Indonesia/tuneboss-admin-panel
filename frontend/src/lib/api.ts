@@ -64,6 +64,16 @@ export type Pagination = {
   total: number
 }
 
+export type AdminAnalytics = {
+  categories: Array<{ color: string; name: string; value: number }>
+  conversion: number
+  customers: number
+  orders: number
+  revenue: Array<{ name: string; total: number }>
+  totalRevenue: number
+  topProducts: Array<{ name: string; sales: number }>
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -91,6 +101,10 @@ export function getAdminMe() {
 
 export function getAdminSummary() {
   return apiRequest<{ summary: AdminSummary }>("/admin/summary")
+}
+
+export function getAdminAnalytics(timeframe: "thisMonth" | "thisYear" | "lastYear") {
+  return apiRequest<{ analytics: AdminAnalytics }>(`/admin/analytics?timeframe=${timeframe}`)
 }
 
 export function getAdminOrders(limit = 5) {
