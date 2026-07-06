@@ -89,3 +89,10 @@ export function updateAdminProduct(id: string, input: { description: string; ima
     method: "PATCH",
   })
 }
+
+export function updateAdminOrderStatus(id: string, status: AdminOrder["status"]) {
+  return apiRequest<{ order: AdminOrder }>(`/admin/orders/${id}/status`, {
+    body: JSON.stringify({ status }),
+    method: "PATCH",
+  })
+}

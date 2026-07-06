@@ -16,8 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useDashboardLanguage } from "@/components/dashboard-language"
-import { mockOrders, formatIDR, type Order } from "@/lib/mock-data"
-import { Search, ChevronDown, Clock, Loader2, CreditCard, CheckCircle2, XCircle, Filter, Package } from "lucide-react"
+import { formatIDR } from "@/lib/mock-data"
+import { Search, ChevronDown, Clock, CreditCard, CheckCircle2, XCircle, Filter, Package } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -26,13 +26,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { getAdminOrders, updateAdminOrderStatus, type AdminOrder } from "@/lib/api"
 
-const statusFlow = ["pending", "processing", "paid", "fulfilled", "cancelled"] as const
+const statusFlow = ["pending", "paid", "fulfilled", "cancelled"] as const
 type OrderStatus = (typeof statusFlow)[number]
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
   pending: <Clock className="size-3.5" />,
-  processing: <Loader2 className="size-3.5" />,
   paid: <CreditCard className="size-3.5" />,
   fulfilled: <CheckCircle2 className="size-3.5" />,
   cancelled: <XCircle className="size-3.5" />,
@@ -125,7 +125,6 @@ function getStatusBadge(status: string, t: typeof messages.id | typeof messages.
 function getStatusColor(status: OrderStatus) {
   switch (status) {
     case "pending": return "text-amber-600 dark:text-amber-400"
-    case "processing": return "text-primary"
     case "paid": return "text-blue-600 dark:text-blue-400"
     case "fulfilled": return "text-emerald-600 dark:text-emerald-400"
     case "cancelled": return "text-destructive"
@@ -137,7 +136,8 @@ export default function OrdersPage() {
   const t = messages[language]
   const [searchQuery, setSearchQuery] = React.useState("")
   const [selectedStatus, setSelectedStatus] = React.useState("ALL")
-  const [ordersList, setOrdersList] = React.useState<Order[]>(mockOrders)
+  const [ordersList, setOrdersList] = React.useState<AdminOrder[]>([])
+  const [loadError, setLoadError] = React.useState("")
   
   const [page, setPage] = React.useState(1)
   const itemsPerPage = 10
@@ -156,8 +156,8 @@ export default function OrdersPage() {
     return ordersList.filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase())
+        (order.customer?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.customer?.email || "").toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus =
         selectedStatus === "ALL" || order.status === selectedStatus
       return matchesSearch && matchesStatus
@@ -167,16 +167,23 @@ export default function OrdersPage() {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage)
   const paginatedOrders = filteredOrders.slice((page - 1) * itemsPerPage, page * itemsPerPage)
 
+  React.useEffect(() => {
+    let ignore = false
+    getAdminOrders(100)
+      .then((response) => { if (!ignore) setOrdersList(response.orders) })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat pesanan"))
+    return () => { ignore = true }
+  }, [])
+
   const handleChangeStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrdersList((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    )
+    updateAdminOrderStatus(orderId, newStatus)
+      .then(({ order }) => setOrdersList((prev) => prev.map((item) => (item.id === orderId ? order : item))))
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal mengubah status"))
   }
 
   const statusFilters = [
     { key: "ALL", label: t.all },
     { key: "pending", label: t.pending },
-    { key: "processing", label: t.processing },
     { key: "paid", label: t.paid },
     { key: "fulfilled", label: t.fulfilled },
     { key: "cancelled", label: t.cancelled },
@@ -184,7 +191,6 @@ export default function OrdersPage() {
 
   const statusLabels: Record<OrderStatus, string> = {
     pending: t.pending,
-    processing: t.processing,
     paid: t.paid,
     fulfilled: t.fulfilled,
     cancelled: t.cancelled,
@@ -197,6 +203,7 @@ export default function OrdersPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">{t.title}</h1>
           <p className="text-sm text-muted-foreground">{t.subtitle}</p>
+          {loadError ? <p className="text-sm font-medium text-destructive">{loadError}</p> : null}
         </div>
 
         {/* Filter and Table Card */}
@@ -257,17 +264,17 @@ export default function OrdersPage() {
                       <TableCell className="font-mono text-xs font-semibold text-primary">{order.id}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium text-sm">{order.customerName}</span>
-                          <span className="text-xs text-muted-foreground">{order.customerEmail}</span>
+                          <span className="font-medium text-sm">{order.customer?.name ?? "-"}</span>
+                          <span className="text-xs text-muted-foreground">{order.customer?.email ?? "-"}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{order.date}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString(language === "en" ? "en-US" : "id-ID")}</TableCell>
                       <TableCell className="text-xs">
                         <Dialog>
                           <DialogTrigger render={
                             <Button variant="outline" size="sm" className="h-7 text-[10px] px-2.5 font-medium bg-background/50">
                               <Package className="mr-1.5 size-3" />
-                              Lihat {order.itemsCount} Item
+                              Lihat {order.items.length} Item
                             </Button>
                           } />
                           <DialogContent className="max-w-md">
@@ -279,9 +286,9 @@ export default function OrdersPage() {
                             </DialogHeader>
                             <div className="py-2 flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2">
                               {order.items?.map((item) => (
-                                <div key={item.productName} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/50 bg-muted/10">
+                                <div key={item.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/50 bg-muted/10">
                                   <span className="text-sm text-foreground font-medium">
-                                    {item.productName}
+                                    {item.name}
                                   </span>
                                   <span className="text-sm text-muted-foreground whitespace-nowrap bg-muted px-2 py-0.5 rounded-md">x{item.quantity}</span>
                                 </div>
