@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { getAdminOrders, updateAdminOrderStatus, type AdminOrder } from "@/lib/api"
+import { getAdminOrders, updateAdminOrderFulfillment, updateAdminOrderStatus, type AdminOrder } from "@/lib/api"
 
 const statusFlow = ["pending", "paid", "fulfilled", "cancelled"] as const
 type OrderStatus = (typeof statusFlow)[number]
@@ -176,7 +176,11 @@ export default function OrdersPage() {
   }, [])
 
   const handleChangeStatus = (orderId: string, newStatus: OrderStatus) => {
-    updateAdminOrderStatus(orderId, newStatus)
+    const request = newStatus === "fulfilled"
+      ? updateAdminOrderFulfillment(orderId, { deliveredAt: new Date().toISOString() })
+      : updateAdminOrderStatus(orderId, newStatus)
+
+    request
       .then(({ order }) => setOrdersList((prev) => prev.map((item) => (item.id === orderId ? order : item))))
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal mengubah status"))
   }

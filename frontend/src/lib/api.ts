@@ -23,12 +23,16 @@ export type AdminSummary = {
 }
 
 export type AdminOrder = {
+  courier?: string
   createdAt: string
   customer: { email: string; id: string; name: string; phone: string } | null
+  deliveredAt?: string | null
   id: string
   items: Array<{ id: string; name: string; quantity: number; unitPrice: number }>
+  shippedAt?: string | null
   status: "pending" | "paid" | "fulfilled" | "cancelled" | "draft"
   total: number
+  trackingNumber?: string
 }
 
 export type AdminProduct = {
@@ -131,6 +135,13 @@ export function updateAdminProduct(id: string, input: { description: string; ima
 export function updateAdminOrderStatus(id: string, status: AdminOrder["status"]) {
   return apiRequest<{ order: AdminOrder }>(`/admin/orders/${id}/status`, {
     body: JSON.stringify({ status }),
+    method: "PATCH",
+  })
+}
+
+export function updateAdminOrderFulfillment(id: string, input: { courier?: string; deliveredAt?: string; shippedAt?: string; trackingNumber?: string }) {
+  return apiRequest<{ order: AdminOrder }>(`/admin/orders/${id}/fulfillment`, {
+    body: JSON.stringify(input),
     method: "PATCH",
   })
 }
