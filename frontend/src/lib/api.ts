@@ -111,6 +111,20 @@ export function getAdminMe() {
   return apiRequest<{ user: AdminUser }>("/auth/me")
 }
 
+export function updateAdminAccount(input: { name: string; phone?: string }) {
+  return apiRequest<{ user: AdminUser }>("/account", {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+}
+
+export function updateAdminPassword(input: { currentPassword: string; newPassword: string }) {
+  return apiRequest<{ ok: true }>("/account/password", {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+}
+
 export function getAdminSummary() {
   return apiRequest<{ summary: AdminSummary }>("/admin/summary")
 }

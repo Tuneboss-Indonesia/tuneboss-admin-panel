@@ -10,6 +10,7 @@ import { User, Mail, Lock, Save, Loader2, CheckCircle2, Eye, EyeOff } from "luci
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { getAdminMe, updateAdminAccount, updateAdminPassword, type AdminUser } from "@/lib/api"
 
 const messages = {
   id: {
@@ -78,18 +79,22 @@ type FormAction =
   | { type: "savingProfile" }
   | { type: "savedProfile" }
   | { type: "clearSavedProfile" }
+  | { type: "stopSavingProfile" }
   | { type: "savingSecurity" }
   | { type: "savedSecurity" }
   | { type: "clearSavedSecurity" }
+  | { type: "stopSavingSecurity" }
 
 function formReducer(state: FormStatus, action: FormAction): FormStatus {
   switch (action.type) {
     case "savingProfile": return { ...state, isSavingProfile: true }
     case "savedProfile": return { ...state, isSavingProfile: false, profileSaved: true }
     case "clearSavedProfile": return { ...state, profileSaved: false }
+    case "stopSavingProfile": return { ...state, isSavingProfile: false }
     case "savingSecurity": return { ...state, isSavingSecurity: true }
     case "savedSecurity": return { ...state, isSavingSecurity: false, securitySaved: true }
     case "clearSavedSecurity": return { ...state, securitySaved: false }
+    case "stopSavingSecurity": return { ...state, isSavingSecurity: false }
   }
 }
 
@@ -120,6 +125,8 @@ export default function SettingsPage() {
   const {
     register: registerProfile,
     handleSubmit: handleProfileSubmit,
+    reset: resetProfile,
+    setError: setProfileError,
     formState: { errors: profileErrors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -134,6 +141,7 @@ export default function SettingsPage() {
     handleSubmit: handleSecuritySubmit,
     formState: { errors: securityErrors },
     reset: resetSecurity,
+    setError: setSecurityError,
   } = useForm<SecurityFormValues>({
     resolver: zodResolver(securitySchema),
     defaultValues: {
@@ -150,22 +158,51 @@ export default function SettingsPage() {
   const [passwords, passwordsDispatch] = React.useReducer(passwordReducer, {
     current: false, new: false, confirm: false,
   })
+  const [currentUser, setCurrentUser] = React.useState<AdminUser | null>(null)
 
-  const onSubmitProfile = () => {
+  React.useEffect(() => {
+    let cancelled = false
+    getAdminMe()
+      .then(({ user }) => {
+        if (cancelled) return
+        setCurrentUser(user)
+        resetProfile({ email: user.email, name: user.name })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [resetProfile])
+
+  const onSubmitProfile = (data: ProfileFormValues) => {
+    if (currentUser && data.email !== currentUser.email) {
+      setProfileError("email", { message: language === "id" ? "Perubahan email belum didukung." : "Email changes are not supported yet." })
+      return
+    }
     dispatch({ type: "savingProfile" })
-    setTimeout(() => {
+    updateAdminAccount({ name: data.name, phone: currentUser?.phone || "" })
+      .then(({ user }) => {
+        setCurrentUser(user)
+        resetProfile({ email: user.email, name: user.name })
       dispatch({ type: "savedProfile" })
       setTimeout(() => dispatch({ type: "clearSavedProfile" }), 3000)
-    }, 800)
+      })
+      .catch((error: Error) => {
+        dispatch({ type: "stopSavingProfile" })
+        setProfileError("name", { message: error.message })
+      })
   }
 
-  const onSubmitSecurity = () => {
+  const onSubmitSecurity = (data: SecurityFormValues) => {
     dispatch({ type: "savingSecurity" })
-    setTimeout(() => {
+    updateAdminPassword({ currentPassword: data.currentPassword, newPassword: data.newPassword })
+      .then(() => {
       dispatch({ type: "savedSecurity" })
       setTimeout(() => dispatch({ type: "clearSavedSecurity" }), 3000)
       resetSecurity()
-    }, 800)
+      })
+      .catch((error: Error) => {
+        dispatch({ type: "stopSavingSecurity" })
+        setSecurityError("currentPassword", { message: error.message })
+      })
   }
 
   return (
