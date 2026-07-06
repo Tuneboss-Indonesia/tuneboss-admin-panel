@@ -42,6 +42,7 @@ export type AdminProduct = {
   image: string
   images?: string[]
   imageUrl: string | null
+  isActive: boolean
   name: string
   price: string
   priceValue: number
@@ -184,13 +185,30 @@ export function getAdminProductReviews(id: string) {
   return apiRequest<{ reviews: AdminProductReview[] }>(`/admin/products/${id}/reviews`)
 }
 
+export type AdminProductInput = {
+  description?: string
+  images?: string[]
+  isActive?: boolean
+  name?: string
+  price?: number
+  sku?: string
+  stock?: number
+}
+
 export function getAdminCustomers({ limit, offset, q }: { limit: number; offset: number; q?: string }) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (q) params.set("q", q)
   return apiRequest<{ customers: AdminCustomer[]; pagination: Pagination }>(`/admin/customers?${params}`)
 }
 
-export function updateAdminProduct(id: string, input: { description: string; images?: string[]; price: number }) {
+export function createAdminProduct(input: Required<Pick<AdminProductInput, "description" | "name" | "price" | "sku" | "stock">> & Pick<AdminProductInput, "images" | "isActive">) {
+  return apiRequest<{ product: AdminProduct }>("/admin/products", {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+}
+
+export function updateAdminProduct(id: string, input: AdminProductInput) {
   return apiRequest<{ product: AdminProduct }>(`/admin/products/${id}`, {
     body: JSON.stringify(input),
     method: "PATCH",

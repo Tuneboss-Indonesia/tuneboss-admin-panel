@@ -31,9 +31,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useDashboardLanguage } from "@/components/dashboard-language"
-import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload } from "lucide-react"
+import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload, Plus } from "lucide-react"
 import { type Product } from "@/lib/mock-data"
-import { getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
+import { createAdminProduct, getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
 import { useForm, useWatch, type UseFormRegister, type UseFormHandleSubmit, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -58,6 +58,7 @@ const messages = {
     of: "dari",
     products: "produk",
     editProduct: "Edit Produk",
+    createProduct: "Tambah Produk",
     editProductDesc: "Tambahkan deskripsi, gambar, dan tentukan harga jual untuk produk ini agar tampil di marketplace.",
     description: "Deskripsi",
     descPlaceholder: "Tulis deskripsi produk untuk ditampilkan di toko...",
@@ -68,6 +69,8 @@ const messages = {
     addMore: "Tambah Lagi",
     save: "Simpan Perubahan",
     cancel: "Batal",
+    deactivate: "Nonaktifkan",
+    activate: "Aktifkan",
     noImages: "Belum ada gambar. Upload gambar produk.",
     dragDrop: "Klik untuk upload gambar produk",
     acceptFormat: "Format: JPG, PNG, WebP (maks 5MB)",
@@ -97,6 +100,7 @@ const messages = {
     of: "of",
     products: "products",
     editProduct: "Edit Product",
+    createProduct: "Add Product",
     editProductDesc: "Add a description, images, and set the selling price for this product to display on the marketplace.",
     description: "Description",
     descPlaceholder: "Write product description to display on the store...",
@@ -107,6 +111,8 @@ const messages = {
     addMore: "Add More",
     save: "Save Changes",
     cancel: "Cancel",
+    deactivate: "Deactivate",
+    activate: "Activate",
     noImages: "No images yet. Upload product images.",
     dragDrop: "Click to upload product images",
     acceptFormat: "Format: JPG, PNG, WebP (max 5MB)",
@@ -133,11 +139,15 @@ function formatIDR(amount: number) {
 
 const getProductSchema = (t: typeof messages.id | typeof messages.en) => z.object({
   description: z.string().min(1, t.descRequired),
+  name: z.string().min(2),
   price: z.number().min(1, t.invalidPrice),
   images: z.array(z.string()),
+  sku: z.string().min(2),
+  stock: z.number().min(0),
 })
 
 type ProductFormValues = z.infer<ReturnType<typeof getProductSchema>>
+type AdminProductRow = Product & { isActive: boolean }
 
 function ProductReviewItem({ name, rating, text }: { name: string, rating: number, text: string }) {
   return (
@@ -156,8 +166,8 @@ function ProductReviewItem({ name, rating, text }: { name: string, rating: numbe
 }
 
 type EditProductDialogProps = {
-  editingProduct: Product | null
-  setEditingProduct: (p: Product | null) => void
+  editingProduct: AdminProductRow | null
+  setEditingProduct: (p: AdminProductRow | null) => void
   handleSubmit: UseFormHandleSubmit<ProductFormValues>
   onSubmit: (data: ProductFormValues) => void
   t: typeof messages.id | typeof messages.en
@@ -194,7 +204,7 @@ function EditProductDialog({
             <DialogHeader className="px-6 py-4 border-b border-border/50">
               <DialogTitle className="flex items-center gap-2">
                 <Edit className="size-5 text-primary" />
-                {t.editProduct}
+                {editingProduct.id ? t.editProduct : t.createProduct}
               </DialogTitle>
               <DialogDescription>{t.editProductDesc}</DialogDescription>
             </DialogHeader>
@@ -208,6 +218,19 @@ function EditProductDialog({
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-sm truncate">{editingProduct.name}</p>
                   <p className="text-xs text-muted-foreground font-mono">{editingProduct.sku} · {editingProduct.category}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">{t.name}</label>
+                  <Input className="bg-background/50 border-border/60" aria-invalid={!!errors.name} {...register("name")} />
+                  {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">{t.sku}</label>
+                  <Input className="bg-background/50 border-border/60 font-mono" aria-invalid={!!errors.sku} {...register("sku")} />
+                  {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
                 </div>
               </div>
 
@@ -242,6 +265,17 @@ function EditProductDialog({
                     Preview: <strong className="text-foreground">{formatIDR(Number(currentPriceWatcher))}</strong>
                   </p>
                 ) : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">{t.stock}</label>
+                <Input
+                  type="number"
+                  className="bg-background/50 border-border/60 font-mono"
+                  aria-invalid={!!errors.stock}
+                  {...register("stock", { valueAsNumber: true })}
+                />
+                {errors.stock && <p className="text-xs text-destructive">{errors.stock.message}</p>}
               </div>
 
               {/* Product Images - full width */}
@@ -356,8 +390,8 @@ export default function ProductsPage() {
     dispatch({ type: 'SET_CATEGORY', payload: value })
   }
   
-  const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
-  const [products, setProducts] = React.useState<Product[]>([])
+  const [editingProduct, setEditingProduct] = React.useState<AdminProductRow | null>(null)
+  const [products, setProducts] = React.useState<AdminProductRow[]>([])
   const [reviewsByProduct, setReviewsByProduct] = React.useState<Record<string, AdminProductReview[]>>({})
   const [loadError, setLoadError] = React.useState("")
   
@@ -375,10 +409,11 @@ export default function ProductsPage() {
         setProducts(response.products.map((product) => ({
           category: product.brand,
           id: product.id,
+          isActive: product.isActive,
           name: product.name,
           price: product.priceValue,
           sku: product.sku,
-          status: product.stock <= 0 ? "out_of_stock" : "active",
+          status: !product.isActive ? "inactive" : product.stock <= 0 ? "out_of_stock" : "active",
           stock: product.stock,
         })))
         setExtras(Object.fromEntries(response.products.map((product) => [product.id, { description: product.description, images: product.images || [], price: product.priceValue }])))
@@ -413,22 +448,34 @@ export default function ProductsPage() {
     defaultValues: {
       images: [],
       description: "",
+      name: "",
       price: 0,
+      sku: "",
+      stock: 0,
     }
   })
 
   const currentPriceWatcher = useWatch({ control, name: "price" })
   const editImages = useWatch({ control, name: "images" }) ?? []
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: AdminProductRow) => {
     setEditingProduct(product)
     const existingExtras = extras[product.id]
     
     reset({
       description: existingExtras?.description || "",
+      name: product.name,
       price: existingExtras?.price || product.price,
       images: existingExtras?.images || [],
+      sku: product.sku,
+      stock: product.stock,
     })
+  }
+
+  const handleCreate = () => {
+    const product = { category: "TuneBoss", id: "", isActive: true, name: "", price: 0, sku: "", status: "active", stock: 0 } as AdminProductRow
+    setEditingProduct(product)
+    reset({ description: "", images: [], name: "", price: 0, sku: "", stock: 0 })
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -452,13 +499,39 @@ export default function ProductsPage() {
   const onSubmit = (data: ProductFormValues) => {
     if (!editingProduct) return
     const remoteImages = editImages.filter((image) => /^https?:\/\//.test(image))
-    updateAdminProduct(editingProduct.id, { description: data.description, images: remoteImages.length ? remoteImages : undefined, price: data.price })
+    const request = editingProduct.id
+      ? updateAdminProduct(editingProduct.id, { description: data.description, images: remoteImages.length ? remoteImages : undefined, name: data.name, price: data.price, sku: data.sku, stock: data.stock })
+      : createAdminProduct({ description: data.description, images: remoteImages.length ? remoteImages : undefined, isActive: true, name: data.name, price: data.price, sku: data.sku, stock: data.stock })
+
+    request
       .then((response) => {
-        setExtras((prev) => ({ ...prev, [editingProduct.id]: { description: response.product.description, images: response.product.images || [], price: response.product.priceValue } }))
-        setProducts((prev) => prev.map((product) => product.id === editingProduct.id ? { ...product, price: response.product.priceValue } : product))
+        const nextProduct: AdminProductRow = {
+          category: response.product.brand,
+          id: response.product.id,
+          isActive: response.product.isActive,
+          name: response.product.name,
+          price: response.product.priceValue,
+          sku: response.product.sku,
+          status: !response.product.isActive ? "inactive" : response.product.stock <= 0 ? "out_of_stock" : "active",
+          stock: response.product.stock,
+        }
+        setExtras((prev) => ({ ...prev, [response.product.id]: { description: response.product.description, images: response.product.images || [], price: response.product.priceValue } }))
+        setProducts((prev) => editingProduct.id ? prev.map((product) => product.id === editingProduct.id ? nextProduct : product) : [nextProduct, ...prev])
         setEditingProduct(null)
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal menyimpan produk"))
+  }
+
+  const handleToggleActive = (product: AdminProductRow) => {
+    updateAdminProduct(product.id, { isActive: !product.isActive })
+      .then(({ product: updated }) => {
+        setProducts((prev) => prev.map((item) => item.id === product.id ? {
+          ...item,
+          isActive: updated.isActive,
+          status: !updated.isActive ? "inactive" : updated.stock <= 0 ? "out_of_stock" : "active",
+        } : item))
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal mengubah status produk"))
   }
 
   const loadReviews = (productId: string) => {
@@ -522,6 +595,10 @@ export default function ProductsPage() {
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button variant="outline" size="sm" className="gap-2 text-xs font-medium shrink-0" onClick={handleCreate}>
+                <Plus className="size-3.5 text-muted-foreground" />
+                {t.createProduct}
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -607,10 +684,15 @@ export default function ProductsPage() {
                         </Dialog>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(product)} className="h-8 gap-1 text-xs">
-                          <Edit className="size-3.5" />
-                          Edit
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleToggleActive(product)} className="h-8 text-xs">
+                            {product.isActive ? t.deactivate : t.activate}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(product)} className="h-8 gap-1 text-xs">
+                            <Edit className="size-3.5" />
+                            Edit
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )})}
