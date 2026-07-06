@@ -50,6 +50,14 @@ export type AdminProduct = {
   stock: number
 }
 
+export type AdminProductReview = {
+  authorName: string
+  createdAt: string
+  id: string
+  quote: string
+  rating: number
+}
+
 export type AdminCustomer = {
   createdAt: string
   email: string
@@ -117,6 +125,10 @@ export function getAdminOrders(limit = 5) {
 
 export function getAdminProducts() {
   return apiRequest<{ products: AdminProduct[] }>("/admin/products?limit=100")
+}
+
+export function getAdminProductReviews(id: string) {
+  return apiRequest<{ reviews: AdminProductReview[] }>(`/admin/products/${id}/reviews`)
 }
 
 export function getAdminCustomers({ limit, offset, q }: { limit: number; offset: number; q?: string }) {

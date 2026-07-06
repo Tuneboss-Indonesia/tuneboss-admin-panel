@@ -33,7 +33,7 @@ import {
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload } from "lucide-react"
 import { type Product } from "@/lib/mock-data"
-import { getAdminProducts, updateAdminProduct } from "@/lib/api"
+import { getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
 import { useForm, useWatch, type UseFormRegister, type UseFormHandleSubmit, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -358,6 +358,7 @@ export default function ProductsPage() {
   
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
   const [products, setProducts] = React.useState<Product[]>([])
+  const [reviewsByProduct, setReviewsByProduct] = React.useState<Record<string, AdminProductReview[]>>({})
   const [loadError, setLoadError] = React.useState("")
   
   // Custom states for images (file upload based)
@@ -458,6 +459,12 @@ export default function ProductsPage() {
         setEditingProduct(null)
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal menyimpan produk"))
+  }
+
+  const loadReviews = (productId: string) => {
+    getAdminProductReviews(productId)
+      .then(({ reviews }) => setReviewsByProduct((prev) => ({ ...prev, [productId]: reviews })))
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat review"))
   }
 
   const getDisplayPrice = (product: Product) => {
@@ -577,7 +584,7 @@ export default function ProductsPage() {
                       <TableCell>
                         <Dialog>
                           <DialogTrigger render={
-                            <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 font-medium bg-background/50">
+                            <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 font-medium bg-background/50" onClick={() => loadReviews(product.id)}>
                               Lihat Review
                             </Button>
                           } />
@@ -589,10 +596,12 @@ export default function ProductsPage() {
                               </DialogDescription>
                             </DialogHeader>
                             <div className="py-2 flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-2">
-                              {/* Dummy Review 1 */}
-                              <ProductReviewItem name="Budi Santoso" rating={5} text="Barang mantap, performa motor jadi makin responsif. Pengiriman juga super cepat!" />
-                              {/* Dummy Review 2 */}
-                              <ProductReviewItem name="Reza Pratama" rating={4} text="Kualitas bagus, tapi cara pasangnya agak rumit buat pemula. Butuh tutorial lebih jelas." />
+                              {(reviewsByProduct[product.id] || []).map((review) => (
+                                <ProductReviewItem key={review.id} name={review.authorName} rating={review.rating} text={review.quote} />
+                              ))}
+                              {(reviewsByProduct[product.id] || []).length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-6">Belum ada review.</p>
+                              ) : null}
                             </div>
                           </DialogContent>
                         </Dialog>
