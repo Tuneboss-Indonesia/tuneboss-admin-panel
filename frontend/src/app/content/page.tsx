@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { uploadAdminFile } from "@/lib/api"
 
 const messages = {
   id: {
@@ -345,10 +346,21 @@ export default function ContentPage() {
 
     setErrors({})
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      const [homeUpload, productsUpload] = await Promise.all([
+        homeHero.file ? uploadAdminFile(homeHero.file) : Promise.resolve({ url: homeHero.previewUrl }),
+        productsHero.file ? uploadAdminFile(productsHero.file) : Promise.resolve({ url: productsHero.previewUrl }),
+      ])
+      setHomeHero((prev) => ({ ...prev, file: null, previewUrl: homeUpload.url }))
+      setProductsHero((prev) => ({ ...prev, file: null, previewUrl: productsUpload.url }))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload gagal"
+      setErrors({ homeHero: message })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleReview = (id: string) => {

@@ -100,6 +100,19 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   return data as T
 }
 
+export async function uploadAdminFile(file: File) {
+  const form = new FormData()
+  form.set("file", file)
+  const response = await fetch(`${apiUrl}/admin/uploads`, {
+    body: form,
+    credentials: "include",
+    method: "POST",
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.message || data.error || "Upload failed")
+  return data as { url: string }
+}
+
 export function loginAdmin(email: string, password: string) {
   return apiRequest<{ user: AdminUser }>("/auth/login", {
     body: JSON.stringify({ email, password }),
