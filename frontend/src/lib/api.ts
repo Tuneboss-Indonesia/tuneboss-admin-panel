@@ -31,6 +31,21 @@ export type AdminOrder = {
   total: number
 }
 
+export type AdminProduct = {
+  brand: string
+  description: string
+  id: string
+  image: string
+  images?: string[]
+  imageUrl: string | null
+  name: string
+  price: string
+  priceValue: number
+  sku: string
+  slug: string
+  stock: number
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -62,4 +77,15 @@ export function getAdminSummary() {
 
 export function getAdminOrders(limit = 5) {
   return apiRequest<{ orders: AdminOrder[] }>(`/admin/orders?limit=${limit}`)
+}
+
+export function getAdminProducts() {
+  return apiRequest<{ products: AdminProduct[] }>("/admin/products?limit=100")
+}
+
+export function updateAdminProduct(id: string, input: { description: string; images?: string[]; price: number }) {
+  return apiRequest<{ product: AdminProduct }>(`/admin/products/${id}`, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
 }

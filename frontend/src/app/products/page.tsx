@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/dialog"
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload } from "lucide-react"
-import { mockProducts, type Product } from "@/lib/mock-data"
+import { type Product } from "@/lib/mock-data"
+import { getAdminProducts, updateAdminProduct } from "@/lib/api"
 import { useForm, useWatch, type UseFormRegister, type UseFormHandleSubmit, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -133,7 +134,7 @@ function formatIDR(amount: number) {
 const getProductSchema = (t: typeof messages.id | typeof messages.en) => z.object({
   description: z.string().min(1, t.descRequired),
   price: z.number().min(1, t.invalidPrice),
-  images: z.array(z.string()).min(1, t.imageRequired),
+  images: z.array(z.string()),
 })
 
 type ProductFormValues = z.infer<ReturnType<typeof getProductSchema>>
@@ -356,16 +357,38 @@ export default function ProductsPage() {
   }
   
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
+  const [products, setProducts] = React.useState<Product[]>([])
+  const [loadError, setLoadError] = React.useState("")
   
   // Custom states for images (file upload based)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Mock state to hold local edits (description, price, images)
+  // Local form-only image previews; backend accepts remote image URLs only.
   const [extras, setExtras] = React.useState<Record<string, { description?: string, price?: number, images: string[] }>>({})
 
-  const categories = ["ALL", ...Array.from(new Set(mockProducts.map((p) => p.category)))]
+  React.useEffect(() => {
+    let ignore = false
+    getAdminProducts()
+      .then((response) => {
+        if (ignore) return
+        setProducts(response.products.map((product) => ({
+          category: product.brand,
+          id: product.id,
+          name: product.name,
+          price: product.priceValue,
+          sku: product.sku,
+          status: product.stock <= 0 ? "out_of_stock" : "active",
+          stock: product.stock,
+        })))
+        setExtras(Object.fromEntries(response.products.map((product) => [product.id, { description: product.description, images: product.images || [], price: product.priceValue }])))
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat produk"))
+    return () => { ignore = true }
+  }, [])
 
-  const filteredProducts = mockProducts.filter((product) => {
+  const categories = ["ALL", ...Array.from(new Set(products.map((p) => p.category)))]
+
+  const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           product.sku.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === "ALL" || product.category === selectedCategory
@@ -427,15 +450,14 @@ export default function ProductsPage() {
 
   const onSubmit = (data: ProductFormValues) => {
     if (!editingProduct) return
-    setExtras((prev) => ({
-      ...prev,
-      [editingProduct.id]: {
-        description: data.description,
-        price: data.price,
-        images: editImages,
-      },
-    }))
-    setEditingProduct(null)
+    const remoteImages = editImages.filter((image) => /^https?:\/\//.test(image))
+    updateAdminProduct(editingProduct.id, { description: data.description, images: remoteImages.length ? remoteImages : undefined, price: data.price })
+      .then((response) => {
+        setExtras((prev) => ({ ...prev, [editingProduct.id]: { description: response.product.description, images: response.product.images || [], price: response.product.priceValue } }))
+        setProducts((prev) => prev.map((product) => product.id === editingProduct.id ? { ...product, price: response.product.priceValue } : product))
+        setEditingProduct(null)
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal menyimpan produk"))
   }
 
   const getDisplayPrice = (product: Product) => {
@@ -454,6 +476,7 @@ export default function ProductsPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">{t.title}</h1>
           <p className="text-sm text-muted-foreground">{t.subtitle}</p>
+          {loadError ? <p className="text-sm font-medium text-destructive">{loadError}</p> : null}
         </div>
 
         {/* Filter and Table Card */}
