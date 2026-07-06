@@ -86,6 +86,21 @@ export type AdminAnalytics = {
   topProducts: Array<{ name: string; sales: number }>
 }
 
+export type StoreReview = {
+  comment: string
+  id: string
+  name: string
+  product: string
+  rating: number
+  selected: boolean
+}
+
+export type StoreContent = {
+  homeHero: string
+  productsHero: string
+  selectedTestimonials: string[]
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -111,6 +126,17 @@ export async function uploadAdminFile(file: File) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.message || data.error || "Upload failed")
   return data as { url: string }
+}
+
+export function getAdminContent() {
+  return apiRequest<{ content: StoreContent; reviews: StoreReview[] }>("/admin/content")
+}
+
+export function updateAdminContent(input: StoreContent) {
+  return apiRequest<{ content: StoreContent; reviews: StoreReview[] }>("/admin/content", {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
 }
 
 export function loginAdmin(email: string, password: string) {

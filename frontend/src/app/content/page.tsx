@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { uploadAdminFile } from "@/lib/api"
+import { getAdminContent, updateAdminContent, uploadAdminFile } from "@/lib/api"
 
 const messages = {
   id: {
@@ -182,6 +182,10 @@ const removeHeroFile = (setHero: React.Dispatch<React.SetStateAction<HeroBanner>
   })
 }
 
+function mediaTypeFromUrl(url: string): "image" | "video" {
+  return /\.(mp4|webm)(\?|$)/i.test(url) ? "video" : "image"
+}
+
 const HeroBannerCard = ({
   t,
   label,
@@ -228,7 +232,7 @@ const HeroBannerCard = ({
         <div className="rounded-md border border-border/50 overflow-hidden bg-muted/20 aspect-[21/9] relative">
           {hero.mediaType === "image" ? (
             <>
-              <Image src={hero.previewUrl} alt="Hero preview" fill sizes="100vw" className="object-cover" />
+              <Image src={hero.previewUrl} alt="Hero preview" fill sizes="100vw" unoptimized className="object-cover" />
             </>
           ) : (
             <video src={hero.previewUrl} className="size-full object-cover" controls aria-label="Hero video preview">
@@ -323,6 +327,21 @@ export default function ContentPage() {
 
   const contentSchema = getContentSchema(t)
 
+  React.useEffect(() => {
+    let cancelled = false
+    getAdminContent()
+      .then(({ content, reviews }) => {
+        if (cancelled) return
+        setState({
+          homeHero: { file: null, fileName: content.homeHero ? content.homeHero.split("/").pop() || content.homeHero : "", mediaType: mediaTypeFromUrl(content.homeHero), previewUrl: content.homeHero },
+          productsHero: { file: null, fileName: content.productsHero ? content.productsHero.split("/").pop() || content.productsHero : "", mediaType: mediaTypeFromUrl(content.productsHero), previewUrl: content.productsHero },
+          reviews,
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   const handleSave = async () => {
     const selectedIds = reviews.reduce<string[]>((acc, r) => {
       if (r.selected) acc.push(r.id)
@@ -351,8 +370,10 @@ export default function ContentPage() {
         homeHero.file ? uploadAdminFile(homeHero.file) : Promise.resolve({ url: homeHero.previewUrl }),
         productsHero.file ? uploadAdminFile(productsHero.file) : Promise.resolve({ url: productsHero.previewUrl }),
       ])
+      const saved = await updateAdminContent({ homeHero: homeUpload.url, productsHero: productsUpload.url, selectedTestimonials: selectedIds })
       setHomeHero((prev) => ({ ...prev, file: null, previewUrl: homeUpload.url }))
       setProductsHero((prev) => ({ ...prev, file: null, previewUrl: productsUpload.url }))
+      setReviews(saved.reviews.length ? saved.reviews : reviews)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
