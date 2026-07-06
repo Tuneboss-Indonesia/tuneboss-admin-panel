@@ -46,6 +46,24 @@ export type AdminProduct = {
   stock: number
 }
 
+export type AdminCustomer = {
+  createdAt: string
+  email: string
+  emailVerified: boolean
+  id: string
+  name: string
+  phone: string
+  totalOrders: number
+  totalSpent: number
+  updatedAt: string
+}
+
+export type Pagination = {
+  limit: number
+  offset: number
+  total: number
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -81,6 +99,12 @@ export function getAdminOrders(limit = 5) {
 
 export function getAdminProducts() {
   return apiRequest<{ products: AdminProduct[] }>("/admin/products?limit=100")
+}
+
+export function getAdminCustomers({ limit, offset, q }: { limit: number; offset: number; q?: string }) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  if (q) params.set("q", q)
+  return apiRequest<{ customers: AdminCustomer[]; pagination: Pagination }>(`/admin/customers?${params}`)
 }
 
 export function updateAdminProduct(id: string, input: { description: string; images?: string[]; price: number }) {

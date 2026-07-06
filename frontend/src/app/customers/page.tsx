@@ -17,7 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useDashboardLanguage } from "@/components/dashboard-language"
-import { mockCustomers, formatIDR, type Customer } from "@/lib/mock-data"
+import { formatIDR } from "@/lib/mock-data"
+import { getAdminCustomers, type AdminCustomer } from "@/lib/api"
 import { Search, Mail, Phone, ShoppingBag, Calendar, User, CheckCircle2, XCircle } from "lucide-react"
 
 const messages = {
@@ -32,8 +33,8 @@ const messages = {
     joined: "Bergabung",
     status: "Status",
     actions: "Aksi",
-    active: "Aktif",
-    inactive: "Tidak Aktif",
+    active: "Terverifikasi",
+    inactive: "Belum Verifikasi",
     showing: "Menampilkan",
     of: "dari",
     customersLabel: "pelanggan",
@@ -66,8 +67,8 @@ const messages = {
     joined: "Joined",
     status: "Status",
     actions: "Actions",
-    active: "Active",
-    inactive: "Inactive",
+    active: "Verified",
+    inactive: "Unverified",
     showing: "Showing",
     of: "of",
     customersLabel: "customers",
@@ -91,13 +92,19 @@ const messages = {
   },
 } as const
 
+function formatDate(value: string, language: "id" | "en") {
+  return new Intl.DateTimeFormat(language === "id" ? "id-ID" : "en-US", { dateStyle: "medium" }).format(new Date(value))
+}
+
 export default function CustomersPage() {
   const { language } = useDashboardLanguage()
   const t = messages[language]
-  const customersList = mockCustomers
   const itemsPerPage = 10
-  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = React.useState<AdminCustomer | null>(null)
   const [isDetailOpen, setIsDetailOpen] = React.useState(false)
+  const [customersList, setCustomersList] = React.useState<AdminCustomer[]>([])
+  const [totalCustomers, setTotalCustomers] = React.useState(0)
+  const [loadError, setLoadError] = React.useState("")
 
   const [state, dispatch] = React.useReducer(
     (state: { searchQuery: string, page: number }, action: { type: 'SET_SEARCH', payload: string } | { type: 'SET_PAGE', payload: number }) => {
@@ -112,20 +119,34 @@ export default function CustomersPage() {
 
   const { searchQuery, page } = state
 
-  const filteredCustomers = React.useMemo(() => {
-    return customersList.filter((c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  }, [searchQuery, customersList])
+  React.useEffect(() => {
+    let cancelled = false
+
+    getAdminCustomers({ limit: itemsPerPage, offset: (page - 1) * itemsPerPage, q: searchQuery.trim() })
+      .then(({ customers, pagination }) => {
+        if (cancelled) return
+        setCustomersList(customers)
+        setTotalCustomers(pagination.total)
+        setLoadError("")
+      })
+      .catch((error: Error) => {
+        if (cancelled) return
+        setCustomersList([])
+        setTotalCustomers(0)
+        setLoadError(error.message)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [page, searchQuery])
 
   const handleSearchChange = (value: string) => {
     dispatch({ type: 'SET_SEARCH', payload: value })
   }
 
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage)
-  const paginatedCustomers = filteredCustomers.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+  const totalPages = Math.ceil(totalCustomers / itemsPerPage)
+  const paginatedCustomers = customersList
 
 
 
@@ -196,11 +217,11 @@ export default function CustomersPage() {
                       <TableCell className="text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="size-3" />
-                          {customer.joinedDate}
+                          {formatDate(customer.createdAt, language)}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {customer.status === "active" ? (
+                        {customer.emailVerified ? (
                           <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-medium">
                             {t.active}
                           </Badge>
@@ -225,10 +246,10 @@ export default function CustomersPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredCustomers.length === 0 && (
+                  {paginatedCustomers.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                        Tidak ada pelanggan yang ditemukan.
+                        {loadError || "Tidak ada pelanggan yang ditemukan."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -237,7 +258,7 @@ export default function CustomersPage() {
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
               <span>
-                {t.showing} <strong className="text-foreground">{paginatedCustomers.length}</strong> {t.of} <strong className="text-foreground">{filteredCustomers.length}</strong> {t.customersLabel}
+                {t.showing} <strong className="text-foreground">{paginatedCustomers.length}</strong> {t.of} <strong className="text-foreground">{totalCustomers}</strong> {t.customersLabel}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -292,7 +313,7 @@ export default function CustomersPage() {
                       <h3 className="font-bold text-lg">{selectedCustomer.name}</h3>
                       <span className="text-xs font-mono text-muted-foreground">{selectedCustomer.id}</span>
                       <div className="mt-1">
-                        {selectedCustomer.status === "active" ? (
+                        {selectedCustomer.emailVerified ? (
                           <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px]">
                             <CheckCircle2 className="size-3 mr-1" /> {t.active}
                           </Badge>
@@ -317,11 +338,11 @@ export default function CustomersPage() {
                     </div>
                     <div className="p-3 rounded-md bg-background border border-border/50 space-y-1">
                       <span className="text-xs text-muted-foreground">{t.memberSince}</span>
-                      <p className="font-medium">{selectedCustomer.joinedDate}</p>
+                          <p className="font-medium">{formatDate(selectedCustomer.createdAt, language)}</p>
                     </div>
                     <div className="p-3 rounded-md bg-background border border-border/50 space-y-1">
                       <span className="text-xs text-muted-foreground">{t.accountStatus}</span>
-                      <p className="font-semibold text-primary capitalize">{selectedCustomer.status}</p>
+                      <p className="font-semibold text-primary">{selectedCustomer.emailVerified ? t.active : t.inactive}</p>
                     </div>
                   </div>
 
