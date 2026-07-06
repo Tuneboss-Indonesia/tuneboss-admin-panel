@@ -7,6 +7,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { BackToTop } from "./back-to-top"
 import { useDashboardLanguage } from "@/components/dashboard-language"
+import { getAdminMe } from "@/lib/api"
+import { usePathname, useRouter } from "next/navigation"
 
 const messages = {
   id: {
@@ -20,6 +22,20 @@ const messages = {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { language } = useDashboardLanguage()
   const t = messages[language]
+  const pathname = usePathname()
+  const router = useRouter()
+
+  React.useEffect(() => {
+    let ignore = false
+    getAdminMe()
+      .then(({ user }) => {
+        if (!ignore && user.role !== "admin" && user.role !== "staff") router.replace("/login")
+      })
+      .catch(() => {
+        if (!ignore && pathname !== "/login") router.replace("/login")
+      })
+    return () => { ignore = true }
+  }, [pathname, router])
 
   return (
     <SidebarProvider>

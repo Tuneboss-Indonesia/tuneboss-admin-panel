@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { setStoredTheme, useStoredTheme, applyTheme, type Theme, type Language } from "@/lib/preferences"
+import { loginAdmin } from "@/lib/api"
 
 const messages = {
   id: {
@@ -33,7 +34,7 @@ const messages = {
     emailEmpty: "Email tidak boleh kosong",
     emailInvalid: "Format email tidak valid",
     passwordEmpty: "Kata sandi tidak boleh kosong",
-    invalidCreds: "Email atau kata sandi tidak valid. Coba admin@tuneboss.id / password123",
+    invalidCreds: "Email atau kata sandi tidak valid atau akun bukan admin/staff.",
     copyright: "Hak cipta dilindungi undang-undang.",
   },
   en: {
@@ -46,7 +47,7 @@ const messages = {
     emailEmpty: "Email cannot be empty",
     emailInvalid: "Invalid email format",
     passwordEmpty: "Password cannot be empty",
-    invalidCreds: "Invalid email or password. Try admin@tuneboss.id / password123",
+    invalidCreds: "Invalid email/password or account is not admin/staff.",
     copyright: "All rights reserved.",
   }
 } as const
@@ -93,12 +94,15 @@ export default function LoginPage() {
   const onSubmit = (data: LoginFormValues) => {
     setLoginError("")
     startTransition(async () => {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      if (data.email === "admin@tuneboss.id" && data.password === "password123") {
+      try {
+        const { user } = await loginAdmin(data.email.trim().toLowerCase(), data.password)
+        if (user.role !== "admin" && user.role !== "staff") {
+          setLoginError(t.invalidCreds)
+          return
+        }
         router.push("/dashboard")
-      } else {
-        setLoginError(t.invalidCreds)
+      } catch (error) {
+        setLoginError(error instanceof Error ? error.message : t.invalidCreds)
       }
     })
   }
