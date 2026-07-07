@@ -35,6 +35,16 @@ export type AdminOrder = {
   trackingNumber?: string
 }
 
+export type AdminPaymentEvent = {
+  createdAt: string
+  eventType: string
+  externalId: string
+  id: string
+  provider: string
+  providerReference: string
+  status: string
+}
+
 export type AdminProduct = {
   brand: string
   description: string
@@ -175,6 +185,10 @@ export function getAdminAnalytics(timeframe: "thisMonth" | "thisYear" | "lastYea
 
 export function getAdminOrders(limit = 5) {
   return apiRequest<{ orders: AdminOrder[] }>(`/admin/orders?limit=${limit}`)
+}
+
+export function getAdminOrderPaymentEvents(id: string) {
+  return apiRequest<{ events: AdminPaymentEvent[] }>(`/admin/orders/${id}/payment-events`)
 }
 
 export function getAdminProducts() {

@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { getAdminOrders, updateAdminOrderFulfillment, updateAdminOrderStatus, type AdminOrder } from "@/lib/api"
+import { getAdminOrderPaymentEvents, getAdminOrders, updateAdminOrderFulfillment, updateAdminOrderStatus, type AdminOrder, type AdminPaymentEvent } from "@/lib/api"
 
 const statusFlow = ["pending", "paid", "fulfilled", "cancelled"] as const
 type OrderStatus = (typeof statusFlow)[number]
@@ -137,6 +137,7 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [selectedStatus, setSelectedStatus] = React.useState("ALL")
   const [ordersList, setOrdersList] = React.useState<AdminOrder[]>([])
+  const [paymentEvents, setPaymentEvents] = React.useState<Record<string, AdminPaymentEvent[]>>({})
   const [loadError, setLoadError] = React.useState("")
   
   const [page, setPage] = React.useState(1)
@@ -183,6 +184,12 @@ export default function OrdersPage() {
     request
       .then(({ order }) => setOrdersList((prev) => prev.map((item) => (item.id === orderId ? order : item))))
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal mengubah status"))
+  }
+
+  const loadPaymentEvents = (orderId: string) => {
+    getAdminOrderPaymentEvents(orderId)
+      .then(({ events }) => setPaymentEvents((prev) => ({ ...prev, [orderId]: events })))
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat event pembayaran"))
   }
 
   const statusFilters = [
@@ -276,7 +283,7 @@ export default function OrdersPage() {
                       <TableCell className="text-xs">
                         <Dialog>
                           <DialogTrigger render={
-                            <Button variant="outline" size="sm" className="h-7 text-[10px] px-2.5 font-medium bg-background/50">
+                            <Button variant="outline" size="sm" className="h-7 text-[10px] px-2.5 font-medium bg-background/50" onClick={() => loadPaymentEvents(order.id)}>
                               <Package className="mr-1.5 size-3" />
                               Lihat {order.items.length} Item
                             </Button>
@@ -297,6 +304,22 @@ export default function OrdersPage() {
                                   <span className="text-sm text-muted-foreground whitespace-nowrap bg-muted px-2 py-0.5 rounded-md">x{item.quantity}</span>
                                 </div>
                               ))}
+                              <div className="mt-3 border-t border-border/50 pt-3">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment Events</p>
+                                {(paymentEvents[order.id] || []).map((event) => (
+                                  <div key={event.id} className="flex items-start justify-between gap-3 border-b border-border/30 py-2 last:border-0">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs font-semibold text-foreground">{event.eventType || event.provider}</p>
+                                      <p className="truncate text-[10px] text-muted-foreground">{event.providerReference || event.externalId || "-"}</p>
+                                    </div>
+                                    <div className="text-right text-[10px] text-muted-foreground">
+                                      <p className="font-semibold uppercase text-primary">{event.status || "-"}</p>
+                                      <p>{new Date(event.createdAt).toLocaleString(language === "en" ? "en-US" : "id-ID")}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {(paymentEvents[order.id] || []).length === 0 ? <p className="text-xs text-muted-foreground">Belum ada event pembayaran.</p> : null}
+                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>
