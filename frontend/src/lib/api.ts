@@ -168,6 +168,20 @@ export function updateAdminAccount(input: { name: string; phone?: string }) {
   })
 }
 
+export function requestAdminEmailChange(email: string) {
+  return apiRequest<{ ok: true }>("/account/email-change/request", {
+    body: JSON.stringify({ email }),
+    method: "POST",
+  })
+}
+
+export function verifyAdminEmailChange(email: string, otp: string) {
+  return apiRequest<{ user: AdminUser }>("/account/email-change/verify", {
+    body: JSON.stringify({ email, otp }),
+    method: "POST",
+  })
+}
+
 export function updateAdminPassword(input: { currentPassword: string; newPassword: string }) {
   return apiRequest<{ ok: true }>("/account/password", {
     body: JSON.stringify(input),

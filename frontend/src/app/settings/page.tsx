@@ -10,7 +10,7 @@ import { User, Mail, Lock, Save, Loader2, CheckCircle2, Eye, EyeOff } from "luci
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { getAdminMe, updateAdminAccount, updateAdminPassword, type AdminUser } from "@/lib/api"
+import { getAdminMe, requestAdminEmailChange, updateAdminAccount, updateAdminPassword, verifyAdminEmailChange, type AdminUser } from "@/lib/api"
 
 const messages = {
   id: {
@@ -31,6 +31,9 @@ const messages = {
     nameRequired: "Nama lengkap wajib diisi",
     emailRequired: "Email wajib diisi",
     emailInvalid: "Format email tidak valid",
+    emailOtp: "Kode OTP Email",
+    emailOtpHint: "OTP dikirim ke email baru. Masukkan kode lalu simpan lagi.",
+    emailOtpRequired: "OTP email wajib diisi",
     currentPasswordRequired: "Kata sandi saat ini wajib diisi",
     newPasswordMin: "Kata sandi baru minimal 8 karakter",
     passwordMismatch: "Konfirmasi kata sandi tidak cocok",
@@ -53,6 +56,9 @@ const messages = {
     nameRequired: "Full name is required",
     emailRequired: "Email is required",
     emailInvalid: "Invalid email format",
+    emailOtp: "Email OTP Code",
+    emailOtpHint: "OTP sent to the new email. Enter the code and save again.",
+    emailOtpRequired: "Email OTP is required",
     currentPasswordRequired: "Current password is required",
     newPasswordMin: "New password must be at least 8 characters",
     passwordMismatch: "Passwords do not match",
@@ -63,6 +69,7 @@ const messages = {
 const getProfileSchema = (t: typeof messages.id | typeof messages.en) => z.object({
   name: z.string().min(1, t.nameRequired),
   email: z.string().min(1, t.emailRequired).email(t.emailInvalid),
+  otp: z.string().optional(),
 })
 
 const getSecuritySchema = (t: typeof messages.id | typeof messages.en) => z.object({
@@ -159,6 +166,7 @@ export default function SettingsPage() {
     current: false, new: false, confirm: false,
   })
   const [currentUser, setCurrentUser] = React.useState<AdminUser | null>(null)
+  const [pendingEmail, setPendingEmail] = React.useState("")
 
   React.useEffect(() => {
     let cancelled = false
@@ -166,7 +174,7 @@ export default function SettingsPage() {
       .then(({ user }) => {
         if (cancelled) return
         setCurrentUser(user)
-        resetProfile({ email: user.email, name: user.name })
+        resetProfile({ email: user.email, name: user.name, otp: "" })
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -174,14 +182,39 @@ export default function SettingsPage() {
 
   const onSubmitProfile = (data: ProfileFormValues) => {
     if (currentUser && data.email !== currentUser.email) {
-      setProfileError("email", { message: language === "id" ? "Perubahan email belum didukung." : "Email changes are not supported yet." })
+      dispatch({ type: "savingProfile" })
+      const email = data.email.trim().toLowerCase()
+      const action = pendingEmail === email
+        ? data.otp
+          ? verifyAdminEmailChange(email, data.otp).then(({ user }) => user)
+          : Promise.reject(new Error(t.emailOtpRequired))
+        : requestAdminEmailChange(email).then(() => null)
+      action
+        .then((user) => user ? updateAdminAccount({ name: data.name, phone: user.phone || "" }).then((result) => result.user) : null)
+        .then((user) => {
+          if (!user) {
+            setPendingEmail(email)
+            dispatch({ type: "stopSavingProfile" })
+            setProfileError("otp", { message: t.emailOtpHint })
+            return
+          }
+          setPendingEmail("")
+          setCurrentUser(user)
+          resetProfile({ email: user.email, name: user.name, otp: "" })
+          dispatch({ type: "savedProfile" })
+          setTimeout(() => dispatch({ type: "clearSavedProfile" }), 3000)
+        })
+        .catch((error: Error) => {
+          dispatch({ type: "stopSavingProfile" })
+          setProfileError(pendingEmail === email ? "otp" : "email", { message: error.message })
+        })
       return
     }
     dispatch({ type: "savingProfile" })
     updateAdminAccount({ name: data.name, phone: currentUser?.phone || "" })
       .then(({ user }) => {
         setCurrentUser(user)
-        resetProfile({ email: user.email, name: user.name })
+        resetProfile({ email: user.email, name: user.name, otp: "" })
       dispatch({ type: "savedProfile" })
       setTimeout(() => dispatch({ type: "clearSavedProfile" }), 3000)
       })
@@ -254,6 +287,15 @@ export default function SettingsPage() {
                   </div>
                   {profileErrors.email && <p className="text-sm font-medium text-destructive">{profileErrors.email.message}</p>}
                 </div>
+                {pendingEmail && (
+                  <div className="space-y-2 max-w-md">
+                    <label className="text-sm font-medium text-foreground">{t.emailOtp}</label>
+                    <Input className="bg-background/50 border-border/60" inputMode="numeric" maxLength={6} aria-invalid={!!profileErrors.otp} {...registerProfile("otp")} />
+                    <p className={`text-sm font-medium ${profileErrors.otp ? "text-destructive" : "text-muted-foreground"}`}>
+                      {profileErrors.otp?.message || t.emailOtpHint}
+                    </p>
+                  </div>
+                )}
               </CardContent>
               <CardFooter className="bg-muted/20 border-t border-border/50 p-4 justify-end">
                 <Button type="submit" disabled={form.isSavingProfile} className="min-w-[140px]">
