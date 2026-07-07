@@ -138,6 +138,7 @@ export default function OrdersPage() {
   const [selectedStatus, setSelectedStatus] = React.useState("ALL")
   const [ordersList, setOrdersList] = React.useState<AdminOrder[]>([])
   const [paymentEvents, setPaymentEvents] = React.useState<Record<string, AdminPaymentEvent[]>>({})
+  const [shipmentDrafts, setShipmentDrafts] = React.useState<Record<string, { courier: string; trackingNumber: string }>>({})
   const [loadError, setLoadError] = React.useState("")
   
   const [page, setPage] = React.useState(1)
@@ -190,6 +191,20 @@ export default function OrdersPage() {
     getAdminOrderPaymentEvents(orderId)
       .then(({ events }) => setPaymentEvents((prev) => ({ ...prev, [orderId]: events })))
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat event pembayaran"))
+  }
+
+  const updateShipmentDraft = (order: AdminOrder, field: "courier" | "trackingNumber", value: string) => {
+    setShipmentDrafts((prev) => ({
+      ...prev,
+      [order.id]: { courier: prev[order.id]?.courier ?? order.courier ?? "", trackingNumber: prev[order.id]?.trackingNumber ?? order.trackingNumber ?? "", [field]: value },
+    }))
+  }
+
+  const saveShipment = (order: AdminOrder) => {
+    const draft = shipmentDrafts[order.id] ?? { courier: order.courier ?? "", trackingNumber: order.trackingNumber ?? "" }
+    updateAdminOrderFulfillment(order.id, { courier: draft.courier, shippedAt: order.shippedAt ?? new Date().toISOString(), trackingNumber: draft.trackingNumber })
+      .then(({ order }) => setOrdersList((prev) => prev.map((item) => (item.id === order.id ? order : item))))
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal menyimpan pengiriman"))
   }
 
   const statusFilters = [
@@ -304,6 +319,26 @@ export default function OrdersPage() {
                                   <span className="text-sm text-muted-foreground whitespace-nowrap bg-muted px-2 py-0.5 rounded-md">x{item.quantity}</span>
                                 </div>
                               ))}
+                              {(order.status === "paid" || order.status === "fulfilled") ? (
+                                <div className="mt-3 grid gap-2 border-t border-border/50 pt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fulfillment</p>
+                                  <Input
+                                    className="h-8 text-xs"
+                                    placeholder="Courier"
+                                    value={shipmentDrafts[order.id]?.courier ?? order.courier ?? ""}
+                                    onChange={(event) => updateShipmentDraft(order, "courier", event.target.value)}
+                                  />
+                                  <Input
+                                    className="h-8 text-xs"
+                                    placeholder="Tracking number"
+                                    value={shipmentDrafts[order.id]?.trackingNumber ?? order.trackingNumber ?? ""}
+                                    onChange={(event) => updateShipmentDraft(order, "trackingNumber", event.target.value)}
+                                  />
+                                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => saveShipment(order)}>
+                                    Simpan Pengiriman
+                                  </Button>
+                                </div>
+                              ) : null}
                               <div className="mt-3 border-t border-border/50 pt-3">
                                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment Events</p>
                                 {(paymentEvents[order.id] || []).map((event) => (

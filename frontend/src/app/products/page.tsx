@@ -33,7 +33,7 @@ import {
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload, Plus } from "lucide-react"
 import { type Product } from "@/lib/mock-data"
-import { createAdminProduct, getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
+import { createAdminProduct, deleteAdminProduct, getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
 import { useForm, useWatch, type UseFormRegister, type UseFormHandleSubmit, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -71,6 +71,7 @@ const messages = {
     cancel: "Batal",
     deactivate: "Nonaktifkan",
     activate: "Aktifkan",
+    delete: "Hapus",
     noImages: "Belum ada gambar. Upload gambar produk.",
     dragDrop: "Klik untuk upload gambar produk",
     acceptFormat: "Format: JPG, PNG, WebP (maks 5MB)",
@@ -113,6 +114,7 @@ const messages = {
     cancel: "Cancel",
     deactivate: "Deactivate",
     activate: "Activate",
+    delete: "Delete",
     noImages: "No images yet. Upload product images.",
     dragDrop: "Click to upload product images",
     acceptFormat: "Format: JPG, PNG, WebP (max 5MB)",
@@ -534,6 +536,13 @@ export default function ProductsPage() {
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal mengubah status produk"))
   }
 
+  const handleDelete = (product: AdminProductRow) => {
+    if (!confirm(`Hapus produk ${product.name}?`)) return
+    deleteAdminProduct(product.id)
+      .then(() => setProducts((prev) => prev.filter((item) => item.id !== product.id)))
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal menghapus produk"))
+  }
+
   const loadReviews = (productId: string) => {
     getAdminProductReviews(productId)
       .then(({ reviews }) => setReviewsByProduct((prev) => ({ ...prev, [productId]: reviews })))
@@ -687,6 +696,9 @@ export default function ProductsPage() {
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="sm" onClick={() => handleToggleActive(product)} className="h-8 text-xs">
                             {product.isActive ? t.deactivate : t.activate}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(product)} className="h-8 text-xs text-destructive hover:text-destructive">
+                            {t.delete}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(product)} className="h-8 gap-1 text-xs">
                             <Edit className="size-3.5" />

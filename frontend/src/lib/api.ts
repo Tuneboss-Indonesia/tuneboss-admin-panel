@@ -229,6 +229,10 @@ export function updateAdminProduct(id: string, input: AdminProductInput) {
   })
 }
 
+export function deleteAdminProduct(id: string) {
+  return apiRequest<{ ok: true }>(`/admin/products/${id}`, { method: "DELETE" })
+}
+
 export function updateAdminOrderStatus(id: string, status: AdminOrder["status"]) {
   return apiRequest<{ order: AdminOrder }>(`/admin/orders/${id}/status`, {
     body: JSON.stringify({ status }),
