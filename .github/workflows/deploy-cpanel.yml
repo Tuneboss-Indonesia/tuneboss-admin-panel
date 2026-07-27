@@ -1,0 +1,103 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Typecheck backend
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Prepare deploy bundle
+        shell: bash
+        run: |
+          rm -rf deploy
+          mkdir -p deploy/public_html deploy/backend
+          cp -R frontend/.next deploy/public_html/.next
+          cp -R frontend/public deploy/public_html/public
+          cp frontend/package.json deploy/public_html/package.json
+          cp frontend/next.config.* deploy/public_html/ 2>/dev/null || true
+          cp -R backend/dist deploy/backend/dist
+          cp backend/package.json deploy/backend/package.json
+          cp backend/.env.example deploy/backend/.env.example
+
+      - name: Start ssh agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Add cPanel host key
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy frontend to main domain
+        shell: bash
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.next/cache/' \
+            "${{ github.workspace }}/deploy/public_html/" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_FRONTEND_DIR }}/"
+
+      - name: Install frontend production dependencies on server
+        shell: bash
+        run: |
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "cd '${{ secrets.CPANEL_FRONTEND_DIR }}' && npm ci --omit=dev"
+
+      - name: Deploy backend to subdomain
+        shell: bash
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='node_modules/' \
+            "${{ github.workspace }}/deploy/backend/" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_BACKEND_DIR }}/"
+
+      - name: Install backend production dependencies on server
+        shell: bash
+        run: |
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "cd '${{ secrets.CPANEL_BACKEND_DIR }}' && npm ci --omit=dev"
