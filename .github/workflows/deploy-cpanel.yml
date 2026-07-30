@@ -31,10 +31,8 @@ jobs:
       - name: Package admin panel
         shell: bash
         run: |
-          mkdir -p deploy/admin/.next
-          cp -R frontend/.next/standalone/. deploy/admin/
-          cp -R frontend/.next/static deploy/admin/.next/static
-          cp -R frontend/public deploy/admin/public
+          mkdir -p deploy/admin
+          cp -R frontend/out/. deploy/admin/
           tar -C deploy/admin -czf admin.tar.gz .
 
       - name: Start SSH agent
@@ -61,7 +59,7 @@ jobs:
           done
           exit 1
 
-      - name: Deploy and restart admin panel
+      - name: Deploy admin panel
         shell: bash
         env:
           CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
@@ -73,14 +71,13 @@ jobs:
           ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "cat > '$archive'" < admin.tar.gz
           ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$archive'" <<'REMOTE'
           set -euo pipefail
-          app="/home/$(whoami)/apps/tuneboss-admin-panel/frontend"
+          app="/home/$(whoami)/public_html/apps/tuneboss-admin-panel/frontend"
           stage="${app}.stage"
           trap 'rm -rf -- "$stage"; rm -f -- "$1"' EXIT
           rm -rf -- "$stage"
           mkdir -p "$stage" "$app"
           tar -xzf "$1" -C "$stage"
-          test -f "$stage/server.js"
-          find "$app" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf -- {} +
+          test -f "$stage/index.html"
+          find "$app" -mindepth 1 -maxdepth 1 ! -name .well-known ! -name cgi-bin -exec rm -rf -- {} +
           cp -a "$stage/." "$app/"
-          cloudlinux-selector restart --json --interpreter=nodejs --app-root=apps/tuneboss-admin-panel/frontend
           REMOTE
