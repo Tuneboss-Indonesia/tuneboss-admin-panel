@@ -7,6 +7,7 @@ on:
 
 env:
   NODE_VERSION: 22
+  NEXT_PUBLIC_API_URL: http://api-marketplace.tuneboss-landing.dasrams.biz.id/api
 
 jobs:
   build-and-deploy:
@@ -21,83 +22,65 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Build admin panel
         working-directory: frontend
-        run: npm ci
+        run: npm ci && npm run typecheck && npm run build
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Typecheck frontend
-        working-directory: frontend
-        run: npm run typecheck
-
-      - name: Typecheck backend
-        working-directory: backend
-        run: npm run typecheck
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      - name: Build backend
-        working-directory: backend
-        run: npm run build
-
-      - name: Prepare deploy bundle
+      - name: Package admin panel
         shell: bash
         run: |
-          rm -rf deploy
-          mkdir -p deploy/public_html deploy/backend
-          cp -R frontend/.next deploy/public_html/.next
-          cp -R frontend/public deploy/public_html/public
-          cp frontend/package.json deploy/public_html/package.json
-          cp frontend/next.config.* deploy/public_html/ 2>/dev/null || true
-          cp -R backend/dist deploy/backend/dist
-          cp backend/package.json deploy/backend/package.json
-          cp backend/.env.example deploy/backend/.env.example
+          mkdir -p deploy/admin/.next
+          cp -R frontend/.next/standalone/. deploy/admin/
+          cp -R frontend/.next/static deploy/admin/.next/static
+          cp -R frontend/public deploy/admin/public
+          tar -C deploy/admin -czf admin.tar.gz .
 
-      - name: Start ssh agent
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+      - name: Start SSH agent
+        shell: bash
+        env:
+          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          printf '%s\n' "$CPANEL_SSH_KEY" | ssh-add -
 
       - name: Add cPanel host key
         shell: bash
+        env:
+          CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT || '22' }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
+          for attempt in 1 2 3; do
+            ssh-keyscan -T 10 -p "$CPANEL_PORT" "$CPANEL_HOST" >> ~/.ssh/known_hosts && exit 0
+            sleep $((attempt * 2))
+          done
+          exit 1
 
-      - name: Deploy frontend to main domain
+      - name: Deploy and restart admin panel
         shell: bash
+        env:
+          CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT || '22' }}
+          CPANEL_USER: ${{ secrets.CPANEL_SSH_USER }}
         run: |
-          rsync -az --delete \
-            --exclude='.env' \
-            --exclude='.next/cache/' \
-            "${{ github.workspace }}/deploy/public_html/" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_FRONTEND_DIR }}/"
-
-      - name: Install frontend production dependencies on server
-        shell: bash
-        run: |
-          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "cd '${{ secrets.CPANEL_FRONTEND_DIR }}' && npm ci --omit=dev"
-
-      - name: Deploy backend to subdomain
-        shell: bash
-        run: |
-          rsync -az --delete \
-            --exclude='.env' \
-            --exclude='node_modules/' \
-            "${{ github.workspace }}/deploy/backend/" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_BACKEND_DIR }}/"
-
-      - name: Install backend production dependencies on server
-        shell: bash
-        run: |
-          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
-            "cd '${{ secrets.CPANEL_BACKEND_DIR }}' && npm ci --omit=dev"
+          set -euo pipefail
+          archive="/home/$CPANEL_USER/.admin-${GITHUB_SHA}.tar.gz"
+          ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "cat > '$archive'" < admin.tar.gz
+          ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$archive'" <<'REMOTE'
+          set -euo pipefail
+          app="/home/$(whoami)/apps/tuneboss-admin-panel/frontend"
+          stage="${app}.stage"
+          trap 'rm -rf -- "$stage"; rm -f -- "$1"' EXIT
+          rm -rf -- "$stage"
+          mkdir -p "$stage" "$app"
+          tar -xzf "$1" -C "$stage"
+          test -f "$stage/server.js"
+          find "$app" -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf -- {} +
+          cp -a "$stage/." "$app/"
+          cloudlinux-selector restart --json --interpreter=nodejs --app-root=apps/tuneboss-admin-panel/frontend
+          REMOTE

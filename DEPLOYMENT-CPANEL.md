@@ -1,63 +1,37 @@
-# Deploy ke cPanel via SSH/rsync
+# Deploy Admin Panel ke cPanel
 
-Panduan ini untuk repo `tuneboss-admin-panel`.
+Deploy otomatis berjalan setelah PR di-merge ke branch `main` repository organisasi.
 
-## Struktur Repo
+## Endpoint
 
-- `frontend/` = Next.js admin panel
-- `backend/` = Express API
+- Admin panel: `http://admin.tuneboss-landing.dasrams.biz.id`
+- API dan database: `http://api-marketplace.tuneboss-landing.dasrams.biz.id/api`
+- Health API: `http://api-marketplace.tuneboss-landing.dasrams.biz.id/api/health`
 
-## Target Deploy
+Admin Panel memakai API Marketplace; tidak ada backend atau database kedua dari
+folder `backend/` repo ini.
 
-- frontend hasil build Next.js ke domain utama
-- backend hasil build Express ke subdomain backend
+## GitHub Actions secrets
 
-## Prasyarat
-
-- cPanel support SSH
-- `rsync` tersedia
-- user SSH punya akses tulis ke folder target
-
-## Secret GitHub
-
-Tambahkan secret ini:
+Secrets hanya disimpan di `Tuneboss-Indonesia/tuneboss-admin-panel`:
 
 - `CPANEL_SSH_HOST`
+- `CPANEL_SSH_PORT`
 - `CPANEL_SSH_USER`
 - `CPANEL_SSH_KEY`
-- `CPANEL_SSH_PORT` optional
-- `CPANEL_FRONTEND_DIR`
-- `CPANEL_BACKEND_DIR`
 
-## Contoh Path
+## Target server
 
-```text
-CPANEL_FRONTEND_DIR=/home/cpaneluser/public_html
-CPANEL_BACKEND_DIR=/home/cpaneluser/backend.domain.com
-```
+- Node app: `/home/tunm2447/apps/tuneboss-admin-panel/frontend`
+- Document root: `/home/tunm2447/public_html/apps/tuneboss-admin-panel/frontend`
+- Runtime: CloudLinux Node.js 22
 
-## Alur Workflow
+## Alur deployment
 
-Saat push ke `main`, workflow akan:
+1. Push perubahan ke fork.
+2. Buat PR ke organisasi.
+3. Merge ke `main`.
+4. GitHub Actions membangun Next.js standalone, mengunggah release, dan
+   me-restart Node app cPanel.
 
-1. install dependency frontend dan backend
-2. jalankan typecheck
-3. build frontend dan backend
-4. sync hasil build ke server via SSH/rsync
-
-Frontend yang dikirim adalah hasil build Next.js. Backend yang dikirim adalah hasil build TypeScript Express.
-
-## Catatan Penting
-
-- `.env` tidak ikut dikirim
-- backend tetap perlu `.env` produksi di server
-- subdomain backend sebaiknya diarahkan ke folder yang benar sesuai konfigurasi cPanel
-- pastikan server cPanel mendukung Node.js untuk menjalankan Next.js dan Express
-
-## Setelah Deploy
-
-Pastikan:
-
-- frontend bisa dibuka di domain utama
-- backend bisa dibuka di subdomain
-- permission folder server aman untuk aplikasi Node
+HTTPS diaktifkan setelah DNS dan AutoSSL sehat.
