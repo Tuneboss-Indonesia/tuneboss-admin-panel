@@ -19,6 +19,7 @@ Secrets hanya disimpan di `Tuneboss-Indonesia/tuneboss-admin-panel`:
 - `CPANEL_SSH_PORT`
 - `CPANEL_SSH_USER`
 - `CPANEL_SSH_KEY`
+- `CPANEL_PASSWORD`
 
 ## Target server
 
