@@ -22,16 +22,15 @@ Secrets hanya disimpan di `Tuneboss-Indonesia/tuneboss-admin-panel`:
 
 ## Target server
 
-- Node app: `/home/tunm2447/apps/tuneboss-admin-panel/frontend`
 - Document root: `/home/tunm2447/public_html/apps/tuneboss-admin-panel/frontend`
-- Runtime: CloudLinux Node.js 22
+- Runtime: static export dari Next.js
 
 ## Alur deployment
 
 1. Push perubahan ke fork.
 2. Buat PR ke organisasi.
 3. Merge ke `main`.
-4. GitHub Actions membangun Next.js standalone, mengunggah release, dan
-   me-restart Node app cPanel.
+4. GitHub Actions membangun `frontend/out` dan mengunggah file statis ke
+   document root cPanel.
 
 HTTPS diaktifkan setelah DNS dan AutoSSL sehat.
