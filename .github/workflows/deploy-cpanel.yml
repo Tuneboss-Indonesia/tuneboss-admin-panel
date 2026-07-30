@@ -35,49 +35,25 @@ jobs:
           cp -R frontend/out/. deploy/admin/
           tar -C deploy/admin -czf admin.tar.gz .
 
-      - name: Start SSH agent
-        shell: bash
-        env:
-          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
-        run: |
-          eval "$(ssh-agent -s)"
-          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
-          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
-          printf '%s\n' "$CPANEL_SSH_KEY" | ssh-add -
-
-      - name: Add cPanel host key
-        shell: bash
-        env:
-          CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
-          CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT || '22' }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          for attempt in 1 2 3; do
-            ssh-keyscan -T 10 -p "$CPANEL_PORT" "$CPANEL_HOST" >> ~/.ssh/known_hosts && exit 0
-            sleep $((attempt * 2))
-          done
-          exit 1
-
       - name: Deploy admin panel
         shell: bash
         env:
           CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
-          CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT || '22' }}
           CPANEL_USER: ${{ secrets.CPANEL_SSH_USER }}
+          CPANEL_PASSWORD: ${{ secrets.CPANEL_PASSWORD }}
         run: |
           set -euo pipefail
-          archive="/home/$CPANEL_USER/.admin-${GITHUB_SHA}.tar.gz"
-          ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "cat > '$archive'" < admin.tar.gz
-          ssh -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$archive'" <<'REMOTE'
-          set -euo pipefail
-          app="/home/$(whoami)/public_html/apps/tuneboss-admin-panel/frontend"
-          stage="${app}.stage"
-          trap 'rm -rf -- "$stage"; rm -f -- "$1"' EXIT
-          rm -rf -- "$stage"
-          mkdir -p "$stage" "$app"
-          tar -xzf "$1" -C "$stage"
-          test -f "$stage/index.html"
-          find "$app" -mindepth 1 -maxdepth 1 ! -name .well-known ! -name cgi-bin -exec rm -rf -- {} +
-          cp -a "$stage/." "$app/"
-          REMOTE
+          base="https://${CPANEL_HOST}:2083"
+          cookie="$(mktemp)"
+          login="$(curl -ksS -c "$cookie" -d "user=${CPANEL_USER}" --data-urlencode "pass=${CPANEL_PASSWORD}" "$base/login/?login_only=1")"
+          token="$(python -c 'import json,sys; print(json.load(sys.stdin)["security_token"])' <<< "$login")"
+          curl -ksS -b "$cookie" -F "dir=/home/${CPANEL_USER}" -F "file-1=@admin.tar.gz;filename=admin-static.tar.gz" "$base${token}/execute/Fileman/upload_files" | grep -q '"status":1'
+          curl -ksS -b "$cookie" -G "$base${token}/json-api/cpanel" \
+            --data-urlencode "cpanel_jsonapi_user=${CPANEL_USER}" \
+            --data-urlencode "cpanel_jsonapi_apiversion=2" \
+            --data-urlencode "cpanel_jsonapi_module=Fileman" \
+            --data-urlencode "cpanel_jsonapi_func=fileop" \
+            --data-urlencode "op=extract" \
+            --data-urlencode "sourcefiles=/home/${CPANEL_USER}/admin-static.tar.gz" \
+            --data-urlencode "destfiles=/home/${CPANEL_USER}/public_html/apps/tuneboss-admin-panel/frontend" \
+            --data-urlencode "doubledecode=1" | grep -q '"result":1'
