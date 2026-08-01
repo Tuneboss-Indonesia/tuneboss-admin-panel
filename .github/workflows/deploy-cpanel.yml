@@ -47,6 +47,14 @@ jobs:
           cookie="$(mktemp)"
           login="$(curl -ksS -c "$cookie" -d "user=${CPANEL_USER}" --data-urlencode "pass=${CPANEL_PASSWORD}" "$base/login/?login_only=1")"
           token="$(python -c 'import json,sys; print(json.load(sys.stdin)["security_token"])' <<< "$login")"
+          curl -ksS -b "$cookie" -G "$base${token}/json-api/cpanel" \
+            --data-urlencode "cpanel_jsonapi_user=${CPANEL_USER}" \
+            --data-urlencode "cpanel_jsonapi_apiversion=2" \
+            --data-urlencode "cpanel_jsonapi_module=Fileman" \
+            --data-urlencode "cpanel_jsonapi_func=fileop" \
+            --data-urlencode "op=trash" \
+            --data-urlencode "sourcefiles=/home/${CPANEL_USER}/admin-static.tar.gz" \
+            --data-urlencode "doubledecode=1" >/dev/null || true
           curl -ksS -b "$cookie" -F "dir=/home/${CPANEL_USER}" -F "file-1=@admin.tar.gz;filename=admin-static.tar.gz" "$base${token}/execute/Fileman/upload_files" | grep -q '"status":1'
           curl -ksS -b "$cookie" -G "$base${token}/json-api/cpanel" \
             --data-urlencode "cpanel_jsonapi_user=${CPANEL_USER}" \
