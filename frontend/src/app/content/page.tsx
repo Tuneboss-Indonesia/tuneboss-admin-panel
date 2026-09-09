@@ -133,21 +133,6 @@ type Review = {
   selected: boolean
 }
 
-// Dummy reviews from all products (simulating existing review data)
-const allReviews: Review[] = [
-  { id: "r1", name: "Budi Santoso", rating: 5, comment: "Barang mantap, performa motor jadi makin responsif. Pengiriman juga super cepat!", product: "TuneBoss ECU Yamaha NMAX 155", selected: true },
-  { id: "r2", name: "Reza Pratama", rating: 4, comment: "Kualitas bagus, tapi cara pasangnya agak rumit buat pemula. Butuh tutorial lebih jelas.", product: "TuneBoss ECU Yamaha NMAX 155", selected: true },
-  { id: "r3", name: "Dani Kurniawan", rating: 5, comment: "ECU TuneBoss bener-bener bikin motor berasa beda. Throttle response langsung naik drastis!", product: "TuneBoss Standalone ECU Kawasaki ZX25R", selected: true },
-  { id: "r4", name: "Siti Aisyah", rating: 4, comment: "Beliin buat suami, katanya puas banget. Recommended banget buat yang mau upgrade ECU.", product: "TuneBoss ECU Vespa Sprint / Primavera", selected: false },
-  { id: "r5", name: "Ahmad Fauzi", rating: 5, comment: "Sudah 3 bulan pakai, performa stabil dan konsumsi BBM malah lebih irit. Worth it!", product: "TuneBoss ECU Honda Vario 160", selected: true },
-  { id: "r6", name: "Eko Prasetyo", rating: 5, comment: "ShiftLight-nya keren banget, timing shift jadi lebih presisi. Sangat membantu di track day!", product: "TuneBoss ShiftLight Pro LED Indicator", selected: false },
-  { id: "r7", name: "Fajar Ramadhan", rating: 4, comment: "Quickshifter-nya responsif, upshift jadi mulus tanpa perlu tarik kopling. Harga sesuai kualitas.", product: "TuneBoss Quickshifter Sensor Universal", selected: false },
-  { id: "r8", name: "Rina Wulandari", rating: 5, comment: "Beli buat motor suami, hasilnya memuaskan. Akselerasi terasa lebih smooth dan bertenaga.", product: "TuneBoss ECU Yamaha Aerox 155", selected: false },
-  { id: "r9", name: "Hendra Gunawan", rating: 5, comment: "Top markotop! Pasang di Aerox 155 langsung kerasa bedanya. Support TuneBoss juga oke banget.", product: "TuneBoss ECU Yamaha Aerox 155", selected: true },
-  { id: "r10", name: "Maya Putri", rating: 3, comment: "Produk bagus tapi pengiriman agak lama. Semoga next bisa lebih cepat.", product: "TuneBoss ECU Honda ADV 160", selected: false },
-  { id: "r10", name: "Maya Putri", rating: 3, comment: "Produk bagus tapi pengiriman agak lama. Semoga next bisa lebih cepat.", product: "TuneBoss ECU Honda ADV 160", selected: false },
-]
-
 const Stars = ({ rating }: { rating: number }) => (
   <div className="flex items-center gap-0.5">
     {[1, 2, 3, 4, 5].map((s) => (
@@ -303,7 +288,7 @@ export default function ContentPage() {
     {
       homeHero: { mediaType: "image", file: null, previewUrl: "", fileName: "" },
       productsHero: { mediaType: "image", file: null, previewUrl: "", fileName: "" },
-      reviews: allReviews,
+      reviews: [],
       searchQuery: "",
       filterMode: "all",
       ratingFilter: 0,
@@ -338,7 +323,9 @@ export default function ContentPage() {
           reviews,
         })
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setReviews([])
+      })
     return () => { cancelled = true }
   }, [])
 
