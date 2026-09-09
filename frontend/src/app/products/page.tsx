@@ -33,7 +33,7 @@ import {
 import { useDashboardLanguage } from "@/components/dashboard-language"
 import { Search, Package, Edit, X, Filter, ChevronDown, Star, Upload, Plus } from "lucide-react"
 import { type Product } from "@/lib/mock-data"
-import { createAdminProduct, deleteAdminProduct, getAdminProductReviews, getAdminProducts, updateAdminProduct, type AdminProductReview } from "@/lib/api"
+import { createAdminProduct, deleteAdminProduct, getAdminProductReviews, getAdminProducts, resolveStoreAssetUrl, updateAdminProduct, type AdminProductReview } from "@/lib/api"
 import { useForm, useWatch, type UseFormRegister, type UseFormHandleSubmit, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -418,7 +418,7 @@ export default function ProductsPage() {
           status: !product.isActive ? "inactive" : product.stock <= 0 ? "out_of_stock" : "active",
           stock: product.stock,
         })))
-        setExtras(Object.fromEntries(response.products.map((product) => [product.id, { description: product.description, images: product.images || [], price: product.priceValue }])))
+        setExtras(Object.fromEntries(response.products.map((product) => [product.id, { description: product.description, images: (product.images || []).map(resolveStoreAssetUrl), price: product.priceValue }])))
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Gagal memuat produk"))
     return () => { ignore = true }
@@ -468,7 +468,7 @@ export default function ProductsPage() {
       description: existingExtras?.description || "",
       name: product.name,
       price: existingExtras?.price || product.price,
-      images: existingExtras?.images || [],
+      images: (existingExtras?.images || []).map(resolveStoreAssetUrl),
       sku: product.sku,
       stock: product.stock,
     })
@@ -517,7 +517,7 @@ export default function ProductsPage() {
           status: !response.product.isActive ? "inactive" : response.product.stock <= 0 ? "out_of_stock" : "active",
           stock: response.product.stock,
         }
-        setExtras((prev) => ({ ...prev, [response.product.id]: { description: response.product.description, images: response.product.images || [], price: response.product.priceValue } }))
+        setExtras((prev) => ({ ...prev, [response.product.id]: { description: response.product.description, images: (response.product.images || []).map(resolveStoreAssetUrl), price: response.product.priceValue } }))
         setProducts((prev) => editingProduct.id ? prev.map((product) => product.id === editingProduct.id ? nextProduct : product) : [nextProduct, ...prev])
         setEditingProduct(null)
       })

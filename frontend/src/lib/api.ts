@@ -1,4 +1,11 @@
 export const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/$/, "")
+const storeUrl = (process.env.NEXT_PUBLIC_STORE_URL || "https://marketplace.tuneboss.id").replace(/\/$/, "")
+
+export function resolveStoreAssetUrl(value: string | null | undefined) {
+  if (!value) return ""
+  if (/^https?:\/\//i.test(value)) return value
+  return `${storeUrl}/${value.replace(/^\/+/, "")}`
+}
 
 export type AdminUser = {
   email: string
