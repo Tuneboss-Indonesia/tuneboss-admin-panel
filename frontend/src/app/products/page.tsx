@@ -631,26 +631,21 @@ export default function ProductsPage() {
                       <TableCell className="font-mono text-xs font-medium text-muted-foreground">{product.sku}</TableCell>
                       <TableCell className="font-medium text-sm max-w-[280px]">
                         <div className="flex items-center gap-2">
-                          <div className="size-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                          <div className="relative size-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 overflow-hidden">
+                            <Package className="size-4" />
                             {extras[product.id]?.images?.length ? (
-                              <>
-                                <Image
-                                  src={extras[product.id].images[0]}
-                                  alt="Product preview"
-                                  fill
-                                  sizes="32px"
-                                  unoptimized
-                                  className="object-cover"
-                                  onError={(e) => {
-                                    ;(e.target as HTMLImageElement).src = ""
-                                    ;(e.target as HTMLImageElement).alt = "!"
-                                    ;(e.target as HTMLImageElement).className = "size-8 rounded flex items-center justify-center bg-destructive/10 text-destructive text-[10px]"
-                                  }}
-                                />
-                              </>
-                            ) : (
-                              <Package className="size-4" />
-                            )}
+                              <Image
+                                src={extras[product.id].images[0]}
+                                alt="Product preview"
+                                fill
+                                sizes="32px"
+                                unoptimized
+                                className="object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none"
+                                }}
+                              />
+                            ) : null}
                           </div>
                           <div className="truncate flex flex-col gap-0.5">
                             <span className="truncate">{product.name}</span>
