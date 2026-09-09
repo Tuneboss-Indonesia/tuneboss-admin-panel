@@ -7,7 +7,7 @@ on:
 
 env:
   NODE_VERSION: 22
-  NEXT_PUBLIC_API_URL: http://api-marketplace.tuneboss-landing.dasrams.biz.id/api
+  NEXT_PUBLIC_API_URL: https://api-marketplace.tuneboss.id/api
 
 jobs:
   build-and-deploy:
